@@ -545,6 +545,10 @@ func (p *point) negate() {
 
 // Test for issue #10152.
 func TestPanicInlined(t *testing.T) {
+	if runtime.GOARCH == "wasm" {
+		t.Skip("TODO inlining on wasm")
+	}
+
 	defer func() {
 		r := recover()
 		if r == nil {

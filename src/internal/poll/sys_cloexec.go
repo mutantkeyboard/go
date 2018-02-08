@@ -5,7 +5,7 @@
 // This file implements sysSocket and accept for platforms that do not
 // provide a fast path for setting SetNonblock and CloseOnExec.
 
-// +build darwin nacl netbsd openbsd solaris
+// +build darwin js nacl netbsd openbsd solaris
 
 package poll
 

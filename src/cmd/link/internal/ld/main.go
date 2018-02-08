@@ -222,6 +222,15 @@ func Main(arch *sys.Arch, theArch Arch) {
 	ctxt.typelink()
 	ctxt.symtab()
 	ctxt.dodata()
+
+	if arch == sys.ArchWASM {
+		funcidx := int64(1 + 21)
+		for _, s := range ctxt.Textp {
+			s.Value = funcidx << 16
+			funcidx++
+		}
+	}
+
 	ctxt.address()
 	ctxt.reloc()
 	Thearch.Asmb(ctxt)

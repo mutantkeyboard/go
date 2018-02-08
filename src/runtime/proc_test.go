@@ -230,6 +230,10 @@ func TestBlockLocked(t *testing.T) {
 }
 
 func TestTimerFairness(t *testing.T) {
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no preemption on wasm yet")
+	}
+
 	done := make(chan bool)
 	c := make(chan bool)
 	for i := 0; i < 2; i++ {
@@ -256,6 +260,10 @@ func TestTimerFairness(t *testing.T) {
 }
 
 func TestTimerFairness2(t *testing.T) {
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no preemption on wasm yet")
+	}
+
 	done := make(chan bool)
 	c := make(chan bool)
 	for i := 0; i < 2; i++ {
@@ -290,6 +298,10 @@ var preempt = func() int {
 }
 
 func TestPreemption(t *testing.T) {
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no preemption on wasm yet")
+	}
+
 	// Test that goroutines are preempted at function calls.
 	N := 5
 	if testing.Short() {
@@ -313,6 +325,10 @@ func TestPreemption(t *testing.T) {
 }
 
 func TestPreemptionGC(t *testing.T) {
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no preemption on wasm yet")
+	}
+
 	// Test that pending GC preempts running goroutines.
 	P := 5
 	N := 10
@@ -834,6 +850,10 @@ func TestStealOrder(t *testing.T) {
 }
 
 func TestLockOSThreadNesting(t *testing.T) {
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no threads on wasm yet")
+	}
+
 	go func() {
 		e, i := runtime.LockOSCounts()
 		if e != 0 || i != 0 {

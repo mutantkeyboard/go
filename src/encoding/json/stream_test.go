@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -396,6 +397,10 @@ func TestDecodeInStream(t *testing.T) {
 
 // Test from golang.org/issue/11893
 func TestHTTPDecoding(t *testing.T) {
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no http server on wasm")
+	}
+
 	const raw = `{ "foo": "bar" }`
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

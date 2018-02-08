@@ -40,6 +40,8 @@ type Config struct {
 	NeedsFpScratch  bool          // No direct move between GP and FP register sets
 	BigEndian       bool          //
 	sparsePhiCutoff uint64        // Sparse phi location algorithm used above this #blocks*#variables score
+	noAvg           bool
+	noHmul          bool
 }
 
 type (
@@ -274,6 +276,20 @@ func NewConfig(arch string, types Types, ctxt *obj.Link, optimize bool) *Config 
 		c.LinkReg = linkRegMIPS
 		c.hasGReg = true
 		c.noDuffDevice = true
+	case "wasm":
+		c.PtrSize = 8
+		c.RegSize = 8
+		c.lowerBlock = rewriteBlockWasm
+		c.lowerValue = rewriteValueWasm
+		c.registers = registersWasm[:]
+		c.gpRegMask = gpRegMaskWasm
+		c.fpRegMask = fpRegMaskWasm
+		c.FPReg = framepointerRegWasm
+		c.LinkReg = linkRegWasm
+		c.hasGReg = true
+		c.noDuffDevice = true
+		c.noAvg = true
+		c.noHmul = true
 	default:
 		ctxt.Diag("arch %s not implemented", arch)
 	}

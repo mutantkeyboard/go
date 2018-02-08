@@ -374,6 +374,10 @@ func (s *regAllocState) assignReg(r register, v *Value, c *Value) {
 // If there is no unused register, a Value will be kicked out of
 // a register to make room.
 func (s *regAllocState) allocReg(mask regMask, v *Value) register {
+	if v.WasmStack {
+		return noRegister
+	}
+
 	mask &= s.allocatable
 	mask &^= s.nospill
 	if mask == 0 {
@@ -460,6 +464,10 @@ func (s *regAllocState) makeSpill(v *Value, b *Block) *Value {
 // undone until the caller allows it by clearing nospill. Returns a
 // *Value which is either v or a copy of v allocated to the chosen register.
 func (s *regAllocState) allocValToReg(v *Value, mask regMask, nospill bool, pos src.XPos) *Value {
+	if v.WasmStack {
+		return v
+	}
+
 	vi := &s.values[v.ID]
 
 	// Check if v is already in a requested register.
@@ -624,6 +632,21 @@ func (s *regAllocState) init(f *Func) {
 			}
 		}
 	}
+
+	if s.f.Config.arch == "wasm" {
+		for _, b := range f.Blocks {
+			for _, v := range b.Values {
+				if v.Op >= OpWasmLoweredStaticCall && v.Op <= OpWasmToInt8 && v.Op != OpWasmLoweredConvert {
+					for _, arg := range v.Args {
+						if arg.Uses == 1 && (arg.Op == OpWasmI64Const || arg.Op == OpWasmF64Const) { // TODO use for more ops
+							arg.WasmStack = true
+						}
+					}
+				}
+			}
+		}
+	}
+
 	for _, b := range f.Blocks {
 		for _, v := range b.Values {
 			if !v.Type.IsMemory() && !v.Type.IsVoid() && !v.Type.IsFlags() && !v.Type.IsTuple() {

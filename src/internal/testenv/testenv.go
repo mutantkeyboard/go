@@ -41,7 +41,7 @@ func HasGoBuild() bool {
 		return false
 	}
 	switch runtime.GOOS {
-	case "android", "nacl":
+	case "android", "nacl", "js":
 		return false
 	case "darwin":
 		if strings.HasPrefix(runtime.GOARCH, "arm") {
@@ -114,7 +114,7 @@ func GoTool() (string, error) {
 // using os.StartProcess or (more commonly) exec.Command.
 func HasExec() bool {
 	switch runtime.GOOS {
-	case "nacl":
+	case "nacl", "js":
 		return false
 	case "darwin":
 		if strings.HasPrefix(runtime.GOARCH, "arm") {
@@ -149,7 +149,7 @@ func MustHaveExec(t testing.TB) {
 // HasExternalNetwork reports whether the current system can use
 // external (non-localhost) networks.
 func HasExternalNetwork() bool {
-	return !testing.Short()
+	return !testing.Short() && runtime.GOOS != "nacl" && runtime.GOOS != "js"
 }
 
 // MustHaveExternalNetwork checks that the current system can use
@@ -158,6 +158,9 @@ func HasExternalNetwork() bool {
 func MustHaveExternalNetwork(t testing.TB) {
 	if testing.Short() {
 		t.Skipf("skipping test: no external network in -short mode")
+	}
+	if runtime.GOOS == "nacl" || runtime.GOOS == "js" {
+		t.Skipf("skipping test: no external network on %s", runtime.GOOS)
 	}
 }
 

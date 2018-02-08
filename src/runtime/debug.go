@@ -15,6 +15,10 @@ import (
 // The number of logical CPUs on the local machine can be queried with NumCPU.
 // This call will go away when the scheduler improves.
 func GOMAXPROCS(n int) int {
+	if GOARCH == "wasm" {
+		return 1
+	}
+
 	lock(&sched.lock)
 	ret := int(gomaxprocs)
 	unlock(&sched.lock)

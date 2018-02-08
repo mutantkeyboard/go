@@ -2,8 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Fake network poller for NaCl.
-// Should never be used, because NaCl network connections do not honor "SetNonblock".
+// Fake network poller for NaCl/JS.
+// Should never be used, because NaCl/JS network connections do not honor "SetNonblock".
+
+// +build nacl js
 
 package runtime
 

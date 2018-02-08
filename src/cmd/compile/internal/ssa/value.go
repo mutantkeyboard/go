@@ -46,6 +46,9 @@ type Value struct {
 	// Use count. Each appearance in Value.Args and Block.Control counts once.
 	Uses int32
 
+	// Value stays on WebAssembly stack
+	WasmStack bool
+
 	// Storage for the first three args
 	argstorage [3]*Value
 }
@@ -304,6 +307,14 @@ func (v *Value) RegName() string {
 		v.Fatalf("nil register for value: %s\n%s\n", v.LongString(), v.Block.Func)
 	}
 	return reg.(*Register).name
+}
+
+func (v *Value) HasReg() bool {
+	if int(v.ID) >= len(v.Block.Func.RegAlloc) {
+		return false
+	}
+	reg, _ := v.Block.Func.RegAlloc[v.ID].(*Register)
+	return reg != nil
 }
 
 // MemoryArg returns the memory argument for the Value.

@@ -28,6 +28,10 @@ type OutBuf struct {
 	encbuf [8]byte // temp buffer used by WriteN methods
 }
 
+func NewOutBuf(w *bufio.Writer) *OutBuf {
+	return &OutBuf{w: w}
+}
+
 func (out *OutBuf) SeekSet(p int64) {
 	if p == out.off {
 		return

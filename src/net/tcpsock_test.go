@@ -474,7 +474,7 @@ func TestTCPReadWriteAllocs(t *testing.T) {
 		// I/O on Plan 9 allocates memory.
 		// See net/fd_io_plan9.go.
 		t.Skipf("not supported on %s", runtime.GOOS)
-	case "nacl":
+	case "js", "nacl":
 		// NaCl needs to allocate pseudo file descriptor
 		// stuff. See syscall/fd_nacl.go.
 		t.Skipf("not supported on %s", runtime.GOOS)
