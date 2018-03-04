@@ -1848,6 +1848,12 @@ func (ctxt *Link) textaddress() {
 // will not need to create new text sections, and so no need to return sect and n.
 func assignAddress(ctxt *Link, sect *sym.Section, n int, s *sym.Symbol, va uint64, isTramp bool) (*sym.Section, int, uint64) {
 	s.Sect = sect
+	if ctxt.Arch == sys.ArchWASM {
+		s.Value = int64(n+21) << 16
+		n++
+		va += uint64(MINFUNC)
+		return sect, n, va
+	}
 	if s.Attr.SubSymbol() {
 		return sect, n, va
 	}
