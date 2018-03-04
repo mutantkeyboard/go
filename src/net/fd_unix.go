@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris
+// +build darwin dragonfly freebsd js linux nacl netbsd openbsd solaris
 
 package net
 
@@ -279,7 +279,7 @@ func dupCloseOnExec(fd int) (newfd int, err error) {
 		switch e1 {
 		case 0:
 			return int(r0), nil
-		case syscall.EINVAL:
+		case syscall.EINVAL, syscall.ENOSYS:
 			// Old kernel. Fall back to the portable way
 			// from now on.
 			atomic.StoreInt32(&tryDupCloexec, 0)

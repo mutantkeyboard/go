@@ -109,7 +109,7 @@ func runningBenchmarks() bool {
 
 func afterTest(t testing.TB) {
 	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
-	if testing.Short() {
+	if testing.Short() || runtime.GOARCH == "wasm" { // somehow messes up the stack on wasm
 		return
 	}
 	var bad string
