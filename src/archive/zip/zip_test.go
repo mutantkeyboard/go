@@ -15,6 +15,7 @@ import (
 	"internal/testenv"
 	"io"
 	"io/ioutil"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -463,6 +464,9 @@ func suffixIsZip64(t *testing.T, zip sizedReaderAt) bool {
 func TestZip64LargeDirectory(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
+	}
+	if runtime.GOARCH == "wasm" {
+		t.Skip("too slow on wasm")
 	}
 	t.Parallel()
 	// gen returns a func that writes a zip with a wantLen bytes

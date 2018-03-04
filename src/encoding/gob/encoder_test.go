@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -1133,6 +1134,9 @@ func TestHugeWriteFails(t *testing.T) {
 	if testing.Short() {
 		// Requires allocating a monster, so don't do this from all.bash.
 		t.Skip("skipping huge allocation in short mode")
+	}
+	if runtime.GOARCH == "wasm" {
+		t.Skip("out of memory on wasm")
 	}
 	huge := make([]byte, tooBig)
 	huge[0] = 7 // Make sure it's not all zeros.

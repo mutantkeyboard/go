@@ -164,6 +164,9 @@ func TestSmhasherTwoNonzero(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping in short mode")
 	}
+	if GOARCH == "wasm" {
+		t.Skip("Too slow on wasm")
+	}
 	h := newHashSet()
 	for n := 2; n <= 16; n++ {
 		twoNonZero(h, n)
@@ -232,6 +235,9 @@ func TestSmhasherSparse(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping in short mode")
 	}
+	if GOARCH == "wasm" {
+		t.Skip("Too slow on wasm")
+	}
 	sparse(t, 32, 6)
 	sparse(t, 40, 6)
 	sparse(t, 48, 5)
@@ -266,6 +272,9 @@ func setbits(h *HashSet, b []byte, i int, k int) {
 func TestSmhasherPermutation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping in short mode")
+	}
+	if GOARCH == "wasm" {
+		t.Skip("Too slow on wasm")
 	}
 	permutation(t, []uint32{0, 1, 2, 3, 4, 5, 6, 7}, 8)
 	permutation(t, []uint32{0, 1 << 29, 2 << 29, 3 << 29, 4 << 29, 5 << 29, 6 << 29, 7 << 29}, 8)
@@ -436,6 +445,9 @@ func TestSmhasherAvalanche(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping in short mode")
 	}
+	if GOARCH == "wasm" {
+		t.Skip("Too slow on wasm")
+	}
 	avalancheTest1(t, &BytesKey{make([]byte, 2)})
 	avalancheTest1(t, &BytesKey{make([]byte, 4)})
 	avalancheTest1(t, &BytesKey{make([]byte, 8)})
@@ -510,6 +522,9 @@ func TestSmhasherWindowed(t *testing.T) {
 func windowed(t *testing.T, k Key) {
 	if testing.Short() {
 		t.Skip("Skipping in short mode")
+	}
+	if GOARCH == "wasm" {
+		t.Skip("Too slow on wasm")
 	}
 	const BITS = 16
 
