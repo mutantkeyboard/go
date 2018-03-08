@@ -46,6 +46,9 @@ type Value struct {
 	// Use count. Each appearance in Value.Args and Block.Control counts once.
 	Uses int32
 
+	// Value stays on WebAssembly stack
+	WasmStack bool
+
 	// Storage for the first three args
 	argstorage [3]*Value
 }
