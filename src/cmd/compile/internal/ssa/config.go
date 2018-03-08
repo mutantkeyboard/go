@@ -40,6 +40,8 @@ type Config struct {
 	NeedsFpScratch  bool          // No direct move between GP and FP register sets
 	BigEndian       bool          //
 	sparsePhiCutoff uint64        // Sparse phi location algorithm used above this #blocks*#variables score
+	noAvg           bool
+	noHmul          bool
 }
 
 type (
