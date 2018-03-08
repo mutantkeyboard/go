@@ -79,6 +79,13 @@ func initssaconfig() {
 	// GO386=387 runtime functions
 	ControlWord64trunc = sysfunc("controlWord64trunc")
 	ControlWord32 = sysfunc("controlWord32")
+
+	// WASM
+	WasmMove = sysfunc("wasmmove")
+	WasmZero = sysfunc("wasmzero")
+	WasmDiv = sysfunc("wasmdiv")
+	WasmTrunc = sysfunc("wasmtrunc")
+	SigPanic = sysfunc("sigpanic")
 }
 
 // buildssa builds an SSA function for fn.
@@ -1622,7 +1629,11 @@ func (s *state) expr(n *Node) *ssa.Value {
 		if ft.IsInteger() && tt.IsInteger() {
 			var op ssa.Op
 			if tt.Size() == ft.Size() {
-				op = ssa.OpCopy
+				if s.config.Ctxt().Arch.Arch == sys.ArchWASM { // TODO this is not nice
+					op = ssa.OpCvt
+				} else {
+					op = ssa.OpCopy
+				}
 			} else if tt.Size() < ft.Size() {
 				// truncation
 				switch 10*ft.Size() + tt.Size() {
@@ -2729,7 +2740,7 @@ func init() {
 	addF("runtime", "getcallerpc",
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue0(ssa.OpGetCallerPC, s.f.Config.Types.Uintptr)
-		}, sys.AMD64, sys.I386)
+		}, sys.AMD64, sys.I386, sys.WASM)
 
 	add("runtime", "getcallersp",
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
@@ -5048,7 +5059,7 @@ func (s *SSAGenState) AddrScratch(a *obj.Addr) {
 	a.Offset = s.ScratchFpMem.Xoffset
 }
 
-func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
+func (s *SSAGenState) PrepareCall(v *ssa.Value) {
 	idx, ok := s.stackMapIndex[v]
 	if !ok {
 		Fatalf("missing stack map index for %v", v.LongString())
@@ -5069,21 +5080,31 @@ func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
 		thearch.Ginsnop(s.pp)
 	}
 
-	p = s.Prog(obj.ACALL)
 	if sym, ok := v.Aux.(*obj.LSym); ok {
-		p.To.Type = obj.TYPE_MEM
-		p.To.Name = obj.NAME_EXTERN
-		p.To.Sym = sym
-
 		// Record call graph information for nowritebarrierrec
 		// analysis.
 		if nowritebarrierrecCheck != nil {
 			nowritebarrierrecCheck.recordCall(s.pp.curfn, sym, v.Pos)
 		}
+	}
+
+	if s.maxarg < v.AuxInt {
+		s.maxarg = v.AuxInt
+	}
+}
+
+func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
+	s.PrepareCall(v)
+
+	p := s.Prog(obj.ACALL)
+	if sym, ok := v.Aux.(*obj.LSym); ok {
+		p.To.Type = obj.TYPE_MEM
+		p.To.Name = obj.NAME_EXTERN
+		p.To.Sym = sym
 	} else {
 		// TODO(mdempsky): Can these differences be eliminated?
 		switch thearch.LinkArch.Family {
-		case sys.AMD64, sys.I386, sys.PPC64, sys.S390X:
+		case sys.AMD64, sys.I386, sys.PPC64, sys.S390X, sys.WASM:
 			p.To.Type = obj.TYPE_REG
 		case sys.ARM, sys.ARM64, sys.MIPS, sys.MIPS64:
 			p.To.Type = obj.TYPE_MEM
@@ -5091,9 +5112,6 @@ func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
 			Fatalf("unknown indirect call family")
 		}
 		p.To.Reg = v.Args[0].Reg()
-	}
-	if s.maxarg < v.AuxInt {
-		s.maxarg = v.AuxInt
 	}
 	return p
 }
