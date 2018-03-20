@@ -620,7 +620,7 @@ func TestMapBuckets(t *testing.T) {
 	// have a nil bucket pointer due to starting with preallocated buckets
 	// on the stack. Escaping maps start with a non-nil bucket pointer if
 	// hint size is above bucketCnt and thereby have more than one bucket.
-	// These tests depend on bucketCnt and loadFactor* in hashmap.go.
+	// These tests depend on bucketCnt and loadFactor* in map.go.
 	t.Run("mapliteral", func(t *testing.T) {
 		for _, tt := range mapBucketTests {
 			localMap := map[int]int{}
@@ -874,4 +874,25 @@ func BenchmarkMapDelete(b *testing.B) {
 	b.Run("Int32", runWith(benchmarkMapDeleteInt32, 100, 1000, 10000))
 	b.Run("Int64", runWith(benchmarkMapDeleteInt64, 100, 1000, 10000))
 	b.Run("Str", runWith(benchmarkMapDeleteStr, 100, 1000, 10000))
+}
+
+func TestDeferDeleteSlow(t *testing.T) {
+	ks := []complex128{0, 1, 2, 3}
+
+	m := make(map[interface{}]int)
+	for i, k := range ks {
+		m[k] = i
+	}
+	if len(m) != len(ks) {
+		t.Errorf("want %d elements, got %d", len(ks), len(m))
+	}
+
+	func() {
+		for _, k := range ks {
+			defer delete(m, k)
+		}
+	}()
+	if len(m) != 0 {
+		t.Errorf("want 0 elements, got %d", len(m))
+	}
 }

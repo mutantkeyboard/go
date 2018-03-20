@@ -42,8 +42,8 @@ TEXT runtime·rt0_go(SB), NOSPLIT, $0
   End
   Unreachable
 
-DATA	runtime·mainPC+0(SB)/8,$runtime·main(SB)
-GLOBL	runtime·mainPC(SB),RODATA,$8
+DATA  runtime·mainPC+0(SB)/8,$runtime·main(SB)
+GLOBL runtime·mainPC(SB),RODATA,$8
 
 // func checkASM() bool
 TEXT ·checkASM(SB), NOSPLIT, $0-1
@@ -87,6 +87,7 @@ TEXT runtime·gogo(SB), NOSPLIT, $0-0
     I64Const $0
   I64Store $gobuf_ctxt
   Set RET0
+  I32Const $1
 
 // func mcall(fn func(*g))
 // Switch to m->g0's stack, call fn(g).
@@ -133,7 +134,6 @@ TEXT runtime·mcall(SB), NOSPLIT, $0-8
       I64Eq
     If
       JMP runtime·badmcall(SB)
-      Br $2
     End
 
     // switch to g0's stack
@@ -156,8 +156,7 @@ TEXT runtime·mcall(SB), NOSPLIT, $0-8
           Get CTX
         I32WrapI64
       I64Load $0
-    Set I4
-    CALL I4
+    CALL $0
   End
 
       Get SP
@@ -166,12 +165,7 @@ TEXT runtime·mcall(SB), NOSPLIT, $0-8
   Set SP
 
   JMP runtime·badmcall2(SB)
-  Br $1
 
-// func systemstack(fn func())
-TEXT runtime·systemstack(SB), NOSPLIT, $0-8 // FIXME
-      // I0 = fn
-        I64Load fn+0(FP)
       Set I0
 
       // I1 = g.m
@@ -194,8 +188,7 @@ TEXT runtime·systemstack(SB), NOSPLIT, $0-8 // FIXME
               Get CTX
             I32WrapI64
           I64Load $0
-        Set I4
-        JMP I4
+        JMP $0
       End
 
       // if g != m.curg
@@ -254,8 +247,7 @@ TEXT runtime·systemstack(SB), NOSPLIT, $0-8 // FIXME
             Get CTX
           I32WrapI64
         I64Load $0
-      Set I4
-      CALL I4
+      CALL $0
     End
 
     // switch back to g
@@ -314,393 +306,11 @@ TEXT runtime·jmpdefer(SB), NOSPLIT, $0-16
         Get CTX
       I32WrapI64
     I64Load $0
-  Set I0
-  JMP I0
+  JMP $0
 
 TEXT runtime·asminit(SB), NOSPLIT, $0-0
-	// No per-thread init.
-	RET  
-
-// memequal(p, q unsafe.Pointer, size uintptr) bool
-TEXT runtime·memequal(SB), NOSPLIT, $0-25
-    Get SP
-      I64Load a+0(FP)
-      I64Load b+8(FP)
-      I64Load size+16(FP)
-    Call runtime·memeqbody(SB)
-  I64Store8 ret+24(FP)
-  RET
-
-// memequal_varlen(a, b unsafe.Pointer) bool
-TEXT runtime·memequal_varlen(SB), NOSPLIT, $0-17
-    Get SP
-      I64Load a+0(FP)
-      I64Load b+8(FP)
-      I64Load 8(CTX)
-    Call runtime·memeqbody(SB)
-  I64Store8 ret+16(FP)
-  RET
-
-TEXT bytes·Equal(SB), NOSPLIT, $0-49
-    I64Load a_len+8(FP)
-  Set I0
-    I64Load b_len+32(FP)
-  Set I1
-      Get I0
-      Get I1
-    I64Eq
-  If
-      Get SP
-        I64Load a+0(FP)
-        I64Load b+24(FP)
-        Get I0
-      Call runtime·memeqbody(SB)
-    I64Store8 ret+48(FP)
-  Else
-      Get SP
-      I64Const $0
-    I64Store8 ret+48(FP)
-  End
-  RET
-
-// params: a, b, len
-// ret: 0/1
-TEXT runtime·memeqbody(SB), NOSPLIT, $0-0
-      Get $0
-      Get $1
-    I64Eq
-  If $0
-    I64Const $1
-    Br $1
-  End
-
-  Block
-    Loop
-          Get $2
-        I64Eqz
-      BrIf $1
-
-              Get $0
-            I32WrapI64
-          I64Load8U $0
-              Get $1
-            I32WrapI64
-          I64Load8U $0
-        I64Ne
-      If
-        I64Const $0
-        Br $3
-      End
-
-          Get $0
-          I64Const $1
-        I64Add
-      Set $0
-
-          Get $1
-          I64Const $1
-        I64Add
-      Set $1
-
-          Get $2
-          I64Const $1
-        I64Sub
-      Set $2
-
-      Br $0
-    End
-  End
-
-  I64Const $1
-
-TEXT runtime·cmpstring(SB), NOSPLIT, $0-40
-    Get SP
-      I64Load s1_base+0(FP)
-      I64Load s1_len+8(FP)
-      I64Load s2_base+16(FP)
-      I64Load s2_len+24(FP)
-    Call runtime·cmpbody(SB)
-  I64Store ret+32(FP)
-  RET
-
-TEXT bytes·Compare(SB), NOSPLIT, $0-56
-    Get SP
-      I64Load s1_base+0(FP)
-      I64Load s1_len+8(FP)
-      I64Load s2_base+24(FP)
-      I64Load s2_len+32(FP)
-    Call runtime·cmpbody(SB)
-  I64Store ret+48(FP)
-  RET
-
-// params: a, alen, b, blen
-// ret: -1/0/1
-TEXT runtime·cmpbody(SB), NOSPLIT, $0-0
-  // len = min(alen, blen)
-      Get $1
-      Get $3
-        Get $1
-        Get $3
-      I64LtU
-    Select
-  Set I4
-
-          Get $0
-        I32WrapI64
-          Get $2
-        I32WrapI64
-          Get I4
-        I32WrapI64
-      Call runtime·memcmp(SB)
-    I64ExtendSI32
-  Set I5
-
-      Get I5
-    I64Eqz
-  If
-    // check length
-        Get $1
-        Get $3
-      I64Sub
-    Set I5
-  End
-
-    I64Const $0
-      I64Const $-1
-      I64Const $1
-        Get I5
-        I64Const $0
-      I64LtS
-    Select
-      Get I5
-    I64Eqz
-  Select
-
-// compiled with emscripten
-TEXT runtime·memcmp(SB), NOSPLIT, $0-0
-  Get $2
-  If $1
-  Loop
-  Get $0
-  I32Load8S $0
-  Tee $3
-  Get $1
-  I32Load8S $0
-  Tee $4
-  I32Eq
-  If
-  Get $0
-  I32Const $1
-  I32Add
-  Set $0
-  Get $1
-  I32Const $1
-  I32Add
-  Set $1
-  I32Const $0
-  Get $2
-  I32Const $-1
-  I32Add
-  Tee $2
-  I32Eqz
-  BrIf $3
-  Drop
-  Br $1
-  End
-  End
-  Get $3
-  I32Const $255
-  I32And
-  Get $4
-  I32Const $255
-  I32And
-  I32Sub
-  Else
-  I32Const $0
-  End
-
-TEXT bytes·IndexByte(SB), NOSPLIT, $0-40
-      Get SP
-        I32Load s+0(FP)
-        I32Load8U c+24(FP)
-        I32Load s_len+8(FP)
-      Call runtime·memchr(SB)
-    I64ExtendSI32
-  Set I0
-      I64Const $-1
-        Get I0
-        I64Load s+0(FP)
-      I64Sub
-        Get I0
-      I64Eqz $0
-    Select
-  I64Store ret+32(FP)
-  RET
-
-TEXT strings·IndexByte(SB), NOSPLIT, $0-32
-    Get SP
-      I32Load s+0(FP)
-      I32Load8U c+16(FP)
-      I32Load s_len+8(FP)
-    Call runtime·memchr(SB)
-    I64ExtendSI32
-  Set I0
-      I64Const $-1
-        Get I0
-        I64Load s+0(FP)
-      I64Sub
-        Get I0
-      I64Eqz $0
-    Select
-  I64Store ret+24(FP)
-  RET
-
-// compiled with emscripten
-TEXT runtime·memchr(SB), NOSPLIT, $0
-  Get $1
-  I32Const $255
-  I32And
-  Set $4
-  Block
-  Block
-  Get $2
-  I32Const $0
-  I32Ne
-  Tee $3
-  Get $0
-  I32Const $3
-  I32And
-  I32Const $0
-  I32Ne
-  I32And
-  If
-  Get $1
-  I32Const $255
-  I32And
-  Set $5
-  Loop
-  Get $0
-  I32Load8U $0
-  Get $5
-  I32Eq
-  BrIf $2
-  Get $2
-  I32Const $-1
-  I32Add
-  Tee $2
-  I32Const $0
-  I32Ne
-  Tee $3
-  Get $0
-  I32Const $1
-  I32Add
-  Tee $0
-  I32Const $3
-  I32And
-  I32Const $0
-  I32Ne
-  I32And
-  BrIf $0
-  End
-  End
-  Get $3
-  BrIf $0
-  I32Const $0
-  Set $1
-  Br $1
-  End
-  Get $0
-  I32Load8U $0
-  Get $1
-  I32Const $255
-  I32And
-  Tee $3
-  I32Eq
-  If
-  Get $2
-  Set $1
-  Else
-  Get $4
-  I32Const $16843009
-  I32Mul
-  Set $4
-  Block
-  Block
-  Get $2
-  I32Const $3
-  I32GtU
-  If
-  Get $2
-  Set $1
-  Loop
-  Get $0
-  I32Load $0
-  Get $4
-  I32Xor
-  Tee $2
-  I32Const $-2139062144
-  I32And
-  I32Const $-2139062144
-  I32Xor
-  Get $2
-  I32Const $-16843009
-  I32Add
-  I32And
-  I32Eqz
-  If
-  Get $0
-  I32Const $4
-  I32Add
-  Set $0
-  Get $1
-  I32Const $-4
-  I32Add
-  Tee $1
-  I32Const $3
-  I32GtU
-  BrIf $1
-  Br $3
-  End
-  End
-  Else
-  Get $2
-  Set $1
-  Br $1
-  End
-  Br $1
-  End
-  Get $1
-  I32Eqz
-  If
-  I32Const $0
-  Set $1
-  Br $3
-  End
-  End
-  Loop
-  Get $0
-  I32Load8U $0
-  Get $3
-  I32Eq
-  BrIf $2
-  Get $0
-  I32Const $1
-  I32Add
-  Set $0
-  Get $1
-  I32Const $-1
-  I32Add
-  Tee $1
-  BrIf $0
-  I32Const $0
-  Set $1
-  End
-  End
-  End
-  Get $0
-  I32Const $0
-  Get $1
-  Select
+  // No per-thread init.
+  RET  
 
 TEXT ·publicationBarrier(SB), NOSPLIT, $0-0
   RET
@@ -804,7 +414,7 @@ TEXT runtime·morestack(SB), NOSPLIT, $0-0
 TEXT runtime·morestack_noctxt(SB),NOSPLIT,$0
     I64Const $0
   Set CTX
-	JMP	runtime·morestack(SB)
+  JMP runtime·morestack(SB)
 
 TEXT ·asmcgocall(SB), NOSPLIT, $0-0
   Unreachable
@@ -821,7 +431,7 @@ TEXT ·cgocallback_gofunc(SB), NOSPLIT, $16-32
   End
 
 TEXT reflect·call(SB), NOSPLIT, $0-0
-	JMP	·reflectcall(SB)
+  JMP ·reflectcall(SB)
 
 TEXT ·reflectcall(SB), NOSPLIT, $0-32
       I64Load f+8(FP)
@@ -833,32 +443,32 @@ TEXT ·reflectcall(SB), NOSPLIT, $0-32
     I64Load32U argsize+24(FP)
   Set I0
 
-	DISPATCH(runtime·call32, 32)
-	DISPATCH(runtime·call64, 64)
-	DISPATCH(runtime·call128, 128)
-	DISPATCH(runtime·call256, 256)
-	DISPATCH(runtime·call512, 512)
-	DISPATCH(runtime·call1024, 1024)
-	DISPATCH(runtime·call2048, 2048)
-	DISPATCH(runtime·call4096, 4096)
-	DISPATCH(runtime·call8192, 8192)
-	DISPATCH(runtime·call16384, 16384)
-	DISPATCH(runtime·call32768, 32768)
-	DISPATCH(runtime·call65536, 65536)
-	DISPATCH(runtime·call131072, 131072)
-	DISPATCH(runtime·call262144, 262144)
-	DISPATCH(runtime·call524288, 524288)
-	DISPATCH(runtime·call1048576, 1048576)
-	DISPATCH(runtime·call2097152, 2097152)
-	DISPATCH(runtime·call4194304, 4194304)
-	DISPATCH(runtime·call8388608, 8388608)
-	DISPATCH(runtime·call16777216, 16777216)
-	DISPATCH(runtime·call33554432, 33554432)
-	DISPATCH(runtime·call67108864, 67108864)
-	DISPATCH(runtime·call134217728, 134217728)
-	DISPATCH(runtime·call268435456, 268435456)
-	DISPATCH(runtime·call536870912, 536870912)
-	DISPATCH(runtime·call1073741824, 1073741824)
+  DISPATCH(runtime·call32, 32)
+  DISPATCH(runtime·call64, 64)
+  DISPATCH(runtime·call128, 128)
+  DISPATCH(runtime·call256, 256)
+  DISPATCH(runtime·call512, 512)
+  DISPATCH(runtime·call1024, 1024)
+  DISPATCH(runtime·call2048, 2048)
+  DISPATCH(runtime·call4096, 4096)
+  DISPATCH(runtime·call8192, 8192)
+  DISPATCH(runtime·call16384, 16384)
+  DISPATCH(runtime·call32768, 32768)
+  DISPATCH(runtime·call65536, 65536)
+  DISPATCH(runtime·call131072, 131072)
+  DISPATCH(runtime·call262144, 262144)
+  DISPATCH(runtime·call524288, 524288)
+  DISPATCH(runtime·call1048576, 1048576)
+  DISPATCH(runtime·call2097152, 2097152)
+  DISPATCH(runtime·call4194304, 4194304)
+  DISPATCH(runtime·call8388608, 8388608)
+  DISPATCH(runtime·call16777216, 16777216)
+  DISPATCH(runtime·call33554432, 33554432)
+  DISPATCH(runtime·call67108864, 67108864)
+  DISPATCH(runtime·call134217728, 134217728)
+  DISPATCH(runtime·call268435456, 268435456)
+  DISPATCH(runtime·call536870912, 536870912)
+  DISPATCH(runtime·call1073741824, 1073741824)
   JMP runtime·badreflectcall(SB)
 
 #define CALLFN(NAME, MAXSIZE) \
@@ -886,8 +496,7 @@ TEXT NAME(SB), WRAPPER, $MAXSIZE-32; \
               Get CTX; \
             I32WrapI64; \
           I64Load $0; \
-        Set I4; \
-        CALL I4; \
+        CALL $0; \
       End; \
       \
         I64Load32U retoffset+28(FP); \
@@ -967,3 +576,66 @@ TEXT runtime·goexit(SB), NOSPLIT, $0-0
 
 TEXT runtime·cgocallback(SB), NOSPLIT, $32-32
   Unreachable
+
+// gcWriteBarrier performs a heap pointer write and informs the GC.
+//
+// gcWriteBarrier does NOT follow the Go ABI. It takes two wasm arguments:
+// $0: the destination of the write
+// $1: the value being written
+TEXT runtime·gcWriteBarrier(SB), NOSPLIT, $16
+      // I3 = g.m
+        I64Load g_m(g)
+      Set I3
+
+      // I4 = p
+        I64Load m_p(I3)
+      Set I4
+
+      // I5 = wbBuf.next
+        I64Load (p_wbBuf+wbBuf_next)(I4)
+      Set I5
+
+      // Record value
+          Get I5
+        I32WrapI64
+        Get $1
+      I64Store $0
+
+      // Record *slot
+          Get I5
+        I32WrapI64
+          Get $0
+        I64ExtendUI32
+      I64Store $8
+
+      // Increment wbBuf.next
+          Get I5
+          I64Const $16
+        I64Add
+      Set I5
+          Get I4
+        I32WrapI64
+        Get I5
+      I64Store $p_wbBuf+wbBuf_next
+
+          Get I5
+          I64Load (p_wbBuf+wbBuf_end)(I4)
+        I64Ne
+      BrIf $0
+
+      // Flush
+        Get SP
+          Get $0
+        I64ExtendUI32
+      I64Store $0
+        Get SP
+        Get $1
+      I64Store $8
+      CALL runtime·wbBufFlush(SB)
+    End
+
+    // Do the write
+      Get $0
+      Get $1
+    I64Store $0
+  End

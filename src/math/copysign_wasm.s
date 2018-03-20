@@ -9,5 +9,5 @@ TEXT ·Copysign(SB),NOSPLIT,$0
       F64Load x+0(FP)
       F64Load y+8(FP)
     F64Copysign
-	F64Store ret+16(FP)
+  F64Store ret+16(FP)
   RET

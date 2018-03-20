@@ -304,6 +304,21 @@ func (v *hairyVisitor) visit(n *Node) bool {
 		if t.Nname() == nil {
 			Fatalf("no function definition for [%p] %+v\n", t, t)
 		}
+		if isRuntimePkg(n.Left.Sym.Pkg) {
+			fn := n.Left.Sym.Name
+			if fn == "heapBits.nextArena" {
+				// Special case: explicitly allow
+				// mid-stack inlining of
+				// runtime.heapBits.next even though
+				// it calls slow-path
+				// runtime.heapBits.nextArena.
+				//
+				// TODO(austin): Once mid-stack
+				// inlining is the default, remove
+				// this special case.
+				break
+			}
+		}
 		if inlfn := asNode(t.FuncType().Nname).Func; inlfn.Inl.Len() != 0 {
 			v.budget -= inlfn.InlCost
 			break
@@ -344,6 +359,13 @@ func (v *hairyVisitor) visit(n *Node) bool {
 	case ODCLCONST, OEMPTY, OFALL, OLABEL:
 		// These nodes don't produce code; omit from inlining budget.
 		return false
+
+	case OIF:
+		if Isconst(n.Left, CTBOOL) {
+			// This if and the condition cost nothing.
+			return v.visitList(n.Ninit) || v.visitList(n.Nbody) ||
+				v.visitList(n.Rlist)
+		}
 	}
 
 	v.budget--

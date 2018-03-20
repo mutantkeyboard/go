@@ -436,13 +436,6 @@ func (n *Node) jconv(s fmt.State, flag FmtFlag) {
 		fmt.Fprintf(s, " colas(%v)", n.Colas())
 	}
 
-	if n.Name != nil && n.Name.Funcdepth != 0 {
-		fmt.Fprintf(s, " f(%d)", n.Name.Funcdepth)
-	}
-	if n.Func != nil && n.Func.Depth != 0 {
-		fmt.Fprintf(s, " ff(%d)", n.Func.Depth)
-	}
-
 	switch n.Esc {
 	case EscUnknown:
 		break
@@ -701,15 +694,15 @@ func typefmt(t *types.Type, flag FmtFlag, mode fmtMode, depth int) string {
 	}
 
 	if int(t.Etype) < len(basicnames) && basicnames[t.Etype] != "" {
-		prefix := ""
-		if mode == FErr && (t == types.Idealbool || t == types.Idealstring) {
-			prefix = "untyped "
+		name := basicnames[t.Etype]
+		if t == types.Idealbool || t == types.Idealstring {
+			name = "untyped " + name
 		}
-		return prefix + basicnames[t.Etype]
+		return name
 	}
 
 	if mode == FDbg {
-		return t.Etype.String() + "-" + typefmt(t, flag, 0, depth)
+		return t.Etype.String() + "-" + typefmt(t, flag, FErr, depth)
 	}
 
 	switch t.Etype {

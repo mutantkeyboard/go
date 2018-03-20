@@ -9,4 +9,4 @@ TEXT runtime∕internal∕atomic·StorepNoWB(SB), NOSPLIT, $0-16
     I32WrapI64
     I64Load val+8(FP)
   I64Store
-	RET
+  RET

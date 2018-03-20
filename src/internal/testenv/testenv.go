@@ -156,6 +156,9 @@ func HasExternalNetwork() bool {
 // external (non-localhost) networks.
 // If not, MustHaveExternalNetwork calls t.Skip with an explanation.
 func MustHaveExternalNetwork(t testing.TB) {
+	if runtime.GOOS == "nacl" || runtime.GOOS == "js" {
+		t.Skipf("skipping test: no external network on %s", runtime.GOOS)
+	}
 	if testing.Short() {
 		t.Skipf("skipping test: no external network in -short mode")
 	}

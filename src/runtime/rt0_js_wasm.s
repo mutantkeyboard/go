@@ -23,35 +23,17 @@ TEXT _rt0_wasm_js(SB),NOSPLIT,$0
     I32ShrU
   Set PC_F
 
-    Get $2
-  If
-    Loop
-          Get SP
-        I32Eqz
-      BrIf $1
-
-        Get PC_F
-        Get PC_B
+  Loop
         Get SP
-      Call $0 // trace
+      I32Eqz
+    BrIf $1
 
         Get PC_F
       CallIndirect $0
+    Drop
 
-      Br $0
-    End
-  Else
-    Loop
-          Get SP
-        I32Eqz
-      BrIf $1
-
-        Get PC_F
-      CallIndirect $0
-
-      Br $0
-    End
+    Br $0
   End
 
 TEXT _rt0_wasm_js_lib(SB),NOSPLIT,$0
-	Unreachable
+  Unreachable

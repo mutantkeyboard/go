@@ -101,20 +101,18 @@ var Linkwasm = obj.LinkArch{
 	UnaryDst:   unaryDst,
 }
 
-var wasmcall *obj.LSym
-var wasmreturn *obj.LSym
 var wasmzero *obj.LSym
 var morestack *obj.LSym
 var morestackNoCtxt *obj.LSym
 var sigpanic *obj.LSym
+var deferreturn *obj.LSym
 
 func instinit(ctxt *obj.Link) {
-	wasmcall = ctxt.Lookup("runtime.wasmcall")
-	wasmreturn = ctxt.Lookup("runtime.wasmreturn")
 	wasmzero = ctxt.Lookup("runtime.wasmzero")
 	morestack = ctxt.Lookup("runtime.morestack")
 	morestackNoCtxt = ctxt.Lookup("runtime.morestack_noctxt")
 	sigpanic = ctxt.Lookup("runtime.sigpanic")
+	deferreturn = ctxt.Lookup("runtime.deferreturn")
 }
 
 func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
@@ -422,50 +420,84 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 				break
 			}
 
-			switch jmp.To.Type {
-			case obj.TYPE_MEM:
-				p = appendp(p, AI32Const)
-				p.From = obj.Addr{Type: obj.TYPE_BRANCH, Sym: jmp.To.Sym}
-			case obj.TYPE_REG:
-				p = appendp(p, AGet)
-				p.From = obj.Addr{Type: obj.TYPE_REG, Reg: jmp.To.Reg}
-
-				p = appendp(p, AI32WrapI64)
-
-				p = appendpConst(p, AI32Const, 16)
-
-				p = appendp(p, AI32ShrU)
-			default:
-				panic("unexpected")
-			}
-
 			switch jmp.As {
 			case obj.AJMP:
-				p = appendp(p, ASet)
-				p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_PC_F}
-
 				p = appendpConst(p, AI32Const, 0)
-
 				p = appendp(p, ASet)
 				p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_PC_B}
 
+				if jmp.To.Type == obj.TYPE_MEM {
+					p = appendp(p, ACall)
+					p.To = obj.Addr{Type: obj.TYPE_MEM, Sym: jmp.To.Sym}
+				} else {
+					p = appendp(p, AI32WrapI64)
+					p = appendpConst(p, AI32Const, 16)
+					p = appendp(p, AI32ShrU)
+					p = appendp(p, ACallIndirect)
+
+					if s.Name == "runtime.jmpdefer" {
+						p = appendp(p, ADrop)
+						p = appendpConst(p, AI32Const, 1)
+					}
+				}
+
+				p = appendp(p, ABr)
+				p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: int64(blockDepth)}
+
 			case obj.ACALL:
-				if p.Link.As != AEnd {
+				if p.Link.As != AEnd && jmp.To.Class != 1 {
 					panic("end expected")
 				}
 
-				pc := p.Link.Link.Pc
+				pcAfterCall := p.Link.Link.Pc
 				if jmp.To.Sym == sigpanic {
-					pc-- // sigpanic expects to be called without advancing the pc
+					pcAfterCall-- // sigpanic expects to be called without advancing the pc
 				}
-				p = appendpConst(p, AI32Const, pc)
 
-				p = appendp(p, ACall)
-				p.To = obj.Addr{Type: obj.TYPE_MEM, Sym: wasmcall}
+				p = appendp(p, AGet)
+				p.From = obj.Addr{Type: obj.TYPE_REG, Reg: REG_SP}
+				p = appendpConst(p, AI32Const, 8)
+				p = appendp(p, AI32Sub)
+				p = appendp(p, ASet)
+				p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_SP}
+
+				p = appendp(p, AGet)
+				p.From = obj.Addr{Type: obj.TYPE_REG, Reg: REG_SP}
+				p = appendpConst(p, AI64Const, pcAfterCall)
+				p = appendp(p, AI64Store)
+				p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: 0}
+
+				p = appendp(p, AGet)
+				p.From = obj.Addr{Type: obj.TYPE_REG, Reg: REG_SP}
+				p = appendp(p, AI32Const)
+				p.From = obj.Addr{Type: obj.TYPE_BRANCH, Sym: s}
+				p = appendp(p, AI32Store16)
+				p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: 2}
+
+				p = appendpConst(p, AI32Const, 0)
+				p = appendp(p, ASet)
+				p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_PC_B}
+
+				if jmp.To.Type == obj.TYPE_MEM {
+					p = appendp(p, ACall)
+					p.To = obj.Addr{Type: obj.TYPE_MEM, Sym: jmp.To.Sym}
+				} else {
+					p = appendp(p, AI32WrapI64)
+					p = appendpConst(p, AI32Const, 16)
+					p = appendp(p, AI32ShrU)
+					p = appendp(p, ACallIndirect)
+				}
+
+				p = appendp(p, AIf)
+				if jmp.To.Class == 1 {
+					p = appendp(p, AUnreachable)
+				} else {
+					p = appendpConst(p, AI32Const, 1)
+					p = appendp(p, ABr)
+					p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: int64(blockDepth + 1)}
+				}
+				p = appendp(p, AEnd)
 			}
-
-			p = appendp(p, ABr)
-			p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: int64(blockDepth)}
 
 		case obj.ARET:
 			if framesize > 0 {
@@ -481,8 +513,26 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 				// p.Spadj = int32(-framesize)
 			}
 
-			p = appendp(p, ACall)
-			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: wasmreturn}
+			p = appendp(p, AGet)
+			p.From = obj.Addr{Type: obj.TYPE_REG, Reg: REG_SP}
+			p = appendpConst(p, AI32Load16U, 0)
+			p = appendp(p, ASet)
+			p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_PC_B}
+
+			p = appendp(p, AGet)
+			p.From = obj.Addr{Type: obj.TYPE_REG, Reg: REG_SP}
+			p = appendpConst(p, AI32Load16U, 2)
+			p = appendp(p, ASet)
+			p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_PC_F}
+
+			p = appendp(p, AGet)
+			p.From = obj.Addr{Type: obj.TYPE_REG, Reg: REG_SP}
+			p = appendpConst(p, AI32Const, 8)
+			p = appendp(p, AI32Add)
+			p = appendp(p, ASet)
+			p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_SP}
+
+			p = appendpConst(p, AI32Const, 0)
 
 		case ABr:
 			if p.To.Offset == -2 {
@@ -510,9 +560,6 @@ func preprocess(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 
 			p = appendp(p, ACall)
 			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: s, Class: 1}
-
-			p = appendp(p, ACall)
-			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: wasmreturn}
 		}
 
 		p = p.Link
@@ -583,8 +630,9 @@ func assemble(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 					writeUleb128(w, idx)
 					continue
 				}
+				panic("bad reg")
 			}
-			panic("unexpected")
+			panic("bad type")
 
 		case ASet:
 			switch p.To.Type {
@@ -594,7 +642,12 @@ func assemble(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 				continue
 			case obj.TYPE_REG:
 				if idx, ok := locals[p.To.Reg]; ok {
-					w.WriteByte(0x21) // set_local
+					if p.Link.As == AGet && p.Link.From.Reg == p.To.Reg {
+						w.WriteByte(0x22) // tee_local
+						p = p.Link
+					} else {
+						w.WriteByte(0x21) // set_local
+					}
 					writeUleb128(w, idx)
 					continue
 				}
@@ -603,8 +656,9 @@ func assemble(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 					writeUleb128(w, idx)
 					continue
 				}
+				panic("bad reg")
 			}
-			panic("unexpected")
+			panic("bad type")
 
 		case ATee:
 			switch p.To.Type {
@@ -618,8 +672,9 @@ func assemble(ctxt *obj.Link, s *obj.LSym, newprog obj.ProgAlloc) {
 					writeUleb128(w, idx)
 					continue
 				}
+				panic("bad reg")
 			}
-			panic("unexpected")
+			panic("bad type")
 
 		case obj.ATEXT, AAddrOf, ACallImport, obj.AJMP, obj.ACALL, obj.ARET, obj.AFUNCDATA, obj.APCDATA, AWORD:
 			// ignore

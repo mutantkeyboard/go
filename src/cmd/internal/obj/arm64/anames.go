@@ -370,6 +370,7 @@ var Anames = []string{
 	"VADDP",
 	"VAND",
 	"VCMEQ",
+	"VCNT",
 	"VEOR",
 	"VMOV",
 	"VLD1",
@@ -382,5 +383,7 @@ var Anames = []string{
 	"VMOVI",
 	"VUADDLV",
 	"VSUB",
+	"VFMLA",
+	"VFMLS",
 	"LAST",
 }

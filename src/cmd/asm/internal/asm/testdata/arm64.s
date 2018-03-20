@@ -29,8 +29,20 @@ TEXT	foo(SB), DUPOK|NOSPLIT, $-8
 	ADD	R1<<22, R2, R3
 	ADD	R1->33, R2, R3
 	AND	R1@>33, R2, R3
-	ADD	R1.UXTB, R2, R3                 // 4360218b
-	ADD	R1.UXTB<<4, R2, R3              // 4370218b
+	ADD	R1.UXTB, R2, R3                 // 4300218b
+	ADD	R1.UXTB<<4, R2, R3              // 4310218b
+	ADDW	R2.SXTW, R10, R12               // 4cc1220b
+	ADD	R18.UXTX, R14, R17              // d161328b
+	ADDSW	R18.UXTW, R14, R17              // d141322b
+	ADDS	R12.SXTX, R3, R1                // 61e02cab
+	SUB	R19.UXTH<<4, R2, R21            // 553033cb
+	SUBW	R1.UXTX<<1, R3, R2              // 6264214b
+	SUBS	R3.UXTX, R8, R9                 // 096123eb
+	SUBSW	R17.UXTH, R15, R21              // f521316b
+	CMP	R2.SXTH, R13                    // bfa122eb
+	CMN	R1.SXTX<<2, R10                 // 5fe921ab
+	CMPW	R2.UXTH<<3, R11                 // 7f2d226b
+	CMNW	R1.SXTB, R9                     // 3f81212b
 	VADDP	V1.B16, V2.B16, V3.B16          // 43bc214e
 	VADDP	V1.S4, V2.S4, V3.S4             // 43bca14e
 	VADDP	V1.D2, V2.D2, V3.D2             // 43bce14e
@@ -56,6 +68,12 @@ TEXT	foo(SB), DUPOK|NOSPLIT, $-8
 	VADD	V1, V3, V3                      // 6384e15e
 	VSUB	V12, V30, V30                   // de87ec7e
 	VSUB	V12, V20, V30                   // 9e86ec7e
+	VFMLA	V1.D2, V12.D2, V1.D2            // 81cd614e
+	VFMLA	V1.S2, V12.S2, V1.S2            // 81cd210e
+	VFMLA	V1.S4, V12.S4, V1.S4            // 81cd214e
+	VFMLS	V1.D2, V12.D2, V1.D2            // 81cde14e
+	VFMLS	V1.S2, V12.S2, V1.S2            // 81cda10e
+	VFMLS	V1.S4, V12.S4, V1.S4            // 81cda14e
 
 //	LTYPE1 imsr ',' spreg ','
 //	{
@@ -123,6 +141,12 @@ TEXT	foo(SB), DUPOK|NOSPLIT, $-8
 	VMOVS	(R0), V20                                       // 140040bd
 	VMOVS.P	8(R0), V20                                      // 148440bc
 	VMOVS.W	8(R0), V20                                      // 148c40bc
+	PRFM	(R2), PLDL1KEEP                                 // 400080f9
+	PRFM	16(R2), PLDL1KEEP                               // 400880f9
+	PRFM	48(R6), PSTL2STRM                               // d31880f9
+	PRFM	8(R12), PLIL3STRM                               // 8d0580f9
+	PRFM	(R8), $25                                       // 190180f9
+	PRFM	8(R9), $30                                      // 3e0580f9
 
 	// small offset fits into instructions
 	MOVB	1(R1), R2 // 22048039
@@ -186,16 +210,20 @@ TEXT	foo(SB), DUPOK|NOSPLIT, $-8
 //		outcode($1, &$2, NREG, &$4);
 //	}
 	MOVK	$1, R1
-	VMOV	V8.S[1], R1       // 013d0c0e
-	VMOV	V0.D[0], R11      // 0b3c084e
-	VMOV	V0.D[1], R11      // 0b3c184e
-	VMOV	R20, V1.S[0]      // 811e044e
-	VMOV	R1, V9.H4         // 290c020e
-	VMOV	R22, V11.D2       // cb0e084e
-	VMOV 	V2.B16, V4.B16    // 441ca24e
-	VMOV	V20.S[0], V20     // 9406045e
-	VREV32	V5.B16, V5.B16    // a508206e
-	VDUP	V19.S[0], V17.S4  // 7106044e
+	VMOV	V8.S[1], R1           // 013d0c0e
+	VMOV	V0.D[0], R11          // 0b3c084e
+	VMOV	V0.D[1], R11          // 0b3c184e
+	VMOV	R20, V1.S[0]          // 811e044e
+	VMOV	R1, V9.H4             // 290c020e
+	VMOV	R22, V11.D2           // cb0e084e
+	VMOV 	V2.B16, V4.B16        // 441ca24e
+	VMOV	V20.S[0], V20         // 9406045e
+	VMOV	V12.D[0], V12.D[1]    // 8c05186e
+	VMOV	V10.S[0], V12.S[1]    // 4c050c6e
+	VMOV	V9.H[0], V12.H[1]     // 2c05066e
+	VMOV	V8.B[0], V12.B[1]     // 0c05036e
+	VREV32	V5.B16, V5.B16        // a508206e
+	VDUP	V19.S[0], V17.S4      // 7106044e
 //
 // B/BL
 //
@@ -349,6 +377,15 @@ again:
 //	}
 //	MADD	R1, R2, R3, R4
 
+	FMADDS	F1, F3, F2, F4          // 440c011f
+	FMADDD	F4, F5, F4, F4          // 8414441f
+	FMSUBS	F13, F21, F13, F19      // b3d50d1f
+	FMSUBD	F11, F7, F15, F31       // ff9d4b1f
+	FNMADDS	F1, F3, F2, F4          // 440c211f
+	FNMADDD	F1, F3, F2, F4          // 440c611f
+	FNMSUBS	F1, F3, F2, F4          // 448c211f
+	FNMSUBD	F1, F3, F2, F4          // 448c611f
+
 // DMB, HINT
 //
 //		LDMB imm
@@ -364,8 +401,22 @@ again:
 //	{
 //		outcode($1, &$2, &$4, &$6);
 //	}
-	LDAXRW	(R0), R2
-	STLXRW	R1, (R0), R3
+	LDARB	(R25), R2                            // 22ffdf08
+	LDARH	(R5), R7                             // a7fcdf48
+	LDAXPW	(R10), (R20, R16)                    // 54c17f88
+	LDAXP	(R25), (R30, R11)                    // 3eaf7fc8
+	LDAXRW	(R0), R2                             // 02fc5f88
+	LDXPW	(R24), (R23, R11)                    // 172f7f88
+	LDXP	(R0), (R16, R13)                     // 10347fc8
+	STLRB	R11, (R22)                           // cbfe9f08
+	STLRH	R16, (R23)                           // f0fe9f48
+	STLXP	(R6, R3), (R10), R2                  // 468d22c8
+	STLXPW	(R6, R11), (R22), R21                // c6ae3588
+	STLXRW	R1, (R0), R3                         // 01fc0388
+	STXP	(R1, R2), (R3), R10                  // 61082ac8
+	STXP	(R1, R2), (RSP), R10                 // e10b2ac8
+	STXPW	(R1, R2), (R3), R10                  // 61082a88
+	STXPW	(R1, R2), (RSP), R10                 // e10b2a88
 
 // RET
 //
@@ -375,6 +426,7 @@ again:
 //	}
 	BEQ	2(PC)
 	RET
+	RET	foo(SB)
 
 // More B/BL cases, and canonical names JMP, CALL.
 

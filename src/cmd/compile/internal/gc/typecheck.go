@@ -1250,7 +1250,15 @@ func typecheck1(n *Node, top int) *Node {
 		default:
 			n.Op = OCALLFUNC
 			if t.Etype != TFUNC {
-				yyerror("cannot call non-function %v (type %v)", l, t)
+				name := l.String()
+				if isBuiltinFuncName(name) {
+					// be more specific when the function
+					// name matches a predeclared function
+					yyerror("cannot call non-function %s (type %v), declared at %s",
+						name, t, linestr(l.Name.Defn.Pos))
+				} else {
+					yyerror("cannot call non-function %s (type %v)", name, t)
+				}
 				n.Type = nil
 				return n
 			}
@@ -2027,6 +2035,7 @@ func typecheck1(n *Node, top int) *Node {
 		typecheckslice(n.Ninit.Slice(), Etop)
 		decldepth++
 		n.Left = typecheck(n.Left, Erv)
+		n.Left = defaultlit(n.Left, nil)
 		if n.Left != nil {
 			t := n.Left.Type
 			if t != nil && !t.IsBoolean() {
@@ -2041,6 +2050,7 @@ func typecheck1(n *Node, top int) *Node {
 		ok |= Etop
 		typecheckslice(n.Ninit.Slice(), Etop)
 		n.Left = typecheck(n.Left, Erv)
+		n.Left = defaultlit(n.Left, nil)
 		if n.Left != nil {
 			t := n.Left.Type
 			if t != nil && !t.IsBoolean() {
@@ -2982,10 +2992,11 @@ func typecheckcomplit(n *Node) *Node {
 			t.SetNumElem(length)
 		}
 		if t.IsSlice() {
-			n.Right = nodintconst(length)
 			n.Op = OSLICELIT
+			n.Right = nodintconst(length)
 		} else {
 			n.Op = OARRAYLIT
+			n.Right = nil
 		}
 
 	case TMAP:
@@ -3015,6 +3026,7 @@ func typecheckcomplit(n *Node) *Node {
 		}
 
 		n.Op = OMAPLIT
+		n.Right = nil
 
 	case TSTRUCT:
 		// Need valid field offsets for Xoffset below.
@@ -3030,7 +3042,7 @@ func typecheckcomplit(n *Node) *Node {
 				ls[i] = n1
 				if i >= t.NumFields() {
 					if !errored {
-						yyerror("too many values in struct initializer")
+						yyerror("too many values in %v", n)
 						errored = true
 					}
 					continue
@@ -3048,7 +3060,7 @@ func typecheckcomplit(n *Node) *Node {
 				ls[i] = n1
 			}
 			if len(ls) < t.NumFields() {
-				yyerror("too few values in struct initializer")
+				yyerror("too few values in %v", n)
 			}
 		} else {
 			hash := make(map[string]bool)
@@ -3102,7 +3114,18 @@ func typecheckcomplit(n *Node) *Node {
 					if ci := lookdot1(nil, l.Sym, t, t.Fields(), 2); ci != nil { // Case-insensitive lookup.
 						yyerror("unknown field '%v' in struct literal of type %v (but does have %v)", l.Sym, t, ci.Sym)
 					} else {
-						yyerror("unknown field '%v' in struct literal of type %v", l.Sym, t)
+						p, _ := dotpath(l.Sym, t, nil, true)
+						if p == nil {
+							yyerror("unknown field '%v' in struct literal of type %v", l.Sym, t)
+							continue
+						}
+						// dotpath returns the parent embedded types in reverse order.
+						var ep []string
+						for ei := len(p) - 1; ei >= 0; ei-- {
+							ep = append(ep, p[ei].field.Type.Sym.Name)
+						}
+						ep = append(ep, l.Sym.Name)
+						yyerror("cannot use promoted field %v in struct literal of type %v", strings.Join(ep, "."), t)
 					}
 					continue
 				}
@@ -3116,6 +3139,7 @@ func typecheckcomplit(n *Node) *Node {
 		}
 
 		n.Op = OSTRUCTLIT
+		n.Right = nil
 	}
 
 	if nerr != nerrors {
@@ -3917,11 +3941,14 @@ func deadcodeslice(nn Nodes) {
 		if n == nil {
 			continue
 		}
-		if n.Op == OIF && Isconst(n.Left, CTBOOL) {
-			if n.Left.Bool() {
-				n.Rlist = Nodes{}
-			} else {
-				n.Nbody = Nodes{}
+		if n.Op == OIF {
+			n.Left = deadcodeexpr(n.Left)
+			if Isconst(n.Left, CTBOOL) {
+				if n.Left.Bool() {
+					n.Rlist = Nodes{}
+				} else {
+					n.Nbody = Nodes{}
+				}
 			}
 		}
 		deadcodeslice(n.Ninit)
@@ -3929,4 +3956,33 @@ func deadcodeslice(nn Nodes) {
 		deadcodeslice(n.List)
 		deadcodeslice(n.Rlist)
 	}
+}
+
+func deadcodeexpr(n *Node) *Node {
+	// Perform dead-code elimination on short-circuited boolean
+	// expressions involving constants with the intent of
+	// producing a constant 'if' condition.
+	switch n.Op {
+	case OANDAND:
+		n.Left = deadcodeexpr(n.Left)
+		n.Right = deadcodeexpr(n.Right)
+		if Isconst(n.Left, CTBOOL) {
+			if n.Left.Bool() {
+				return n.Right // true && x => x
+			} else {
+				return n.Left // false && x => false
+			}
+		}
+	case OOROR:
+		n.Left = deadcodeexpr(n.Left)
+		n.Right = deadcodeexpr(n.Right)
+		if Isconst(n.Left, CTBOOL) {
+			if n.Left.Bool() {
+				return n.Left // true || x => true
+			} else {
+				return n.Right // false || x => x
+			}
+		}
+	}
+	return n
 }

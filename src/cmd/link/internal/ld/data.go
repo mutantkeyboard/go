@@ -49,7 +49,9 @@ import (
 func isRuntimeDepPkg(pkg string) bool {
 	switch pkg {
 	case "runtime",
-		"sync/atomic": // runtime may call to sync/atomic, due to go:linkname
+		"sync/atomic",      // runtime may call to sync/atomic, due to go:linkname
+		"internal/bytealg", // for IndexByte
+		"internal/cpu":     // for cpu features
 		return true
 	}
 	return strings.HasPrefix(pkg, "runtime/internal/") && !strings.HasSuffix(pkg, "_test")
@@ -417,7 +419,7 @@ func relocsym(ctxt *Link, s *sym.Symbol) {
 						o -= int64(r.Off) // relative to section offset, not symbol
 					} else if ctxt.Arch.Family == sys.ARM {
 						// see ../arm/asm.go:/machoreloc1
-						o += Symaddr(rs) - int64(s.Value) - int64(r.Off)
+						o += Symaddr(rs) - s.Value - int64(r.Off)
 					} else {
 						o += int64(r.Siz)
 					}
@@ -1846,6 +1848,12 @@ func (ctxt *Link) textaddress() {
 // will not need to create new text sections, and so no need to return sect and n.
 func assignAddress(ctxt *Link, sect *sym.Section, n int, s *sym.Symbol, va uint64, isTramp bool) (*sym.Section, int, uint64) {
 	s.Sect = sect
+	if ctxt.Arch == sys.ArchWASM {
+		s.Value = int64(n+21) << 16
+		n++
+		va += uint64(MINFUNC)
+		return sect, n, va
+	}
 	if s.Attr.SubSymbol() {
 		return sect, n, va
 	}
@@ -1874,7 +1882,6 @@ func assignAddress(ctxt *Link, sect *sym.Section, n int, s *sym.Symbol, va uint6
 	// Only break at outermost syms.
 
 	if ctxt.Arch.InFamily(sys.PPC64) && s.Outer == nil && ctxt.IsELF && ctxt.LinkMode == LinkExternal && va-sect.Vaddr+funcsize+maxSizeTrampolinesPPC64(s, isTramp) > 0x1c00000 {
-
 		// Set the length for the previous text section
 		sect.Length = va - sect.Vaddr
 
@@ -2006,7 +2013,7 @@ func (ctxt *Link) address() {
 	Segdwarf.Fileoff = Segdata.Fileoff + uint64(Rnd(int64(Segdata.Filelen), int64(*FlagRound)))
 	Segdwarf.Filelen = 0
 	if ctxt.HeadType == objabi.Hwindows {
-		Segdwarf.Fileoff = Segdata.Fileoff + uint64(Rnd(int64(Segdata.Filelen), int64(PEFILEALIGN)))
+		Segdwarf.Fileoff = Segdata.Fileoff + uint64(Rnd(int64(Segdata.Filelen), PEFILEALIGN))
 	}
 	for i, s := range Segdwarf.Sections {
 		vlen := int64(s.Length)

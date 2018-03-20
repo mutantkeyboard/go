@@ -9,6 +9,8 @@
 
 package main
 
+import "runtime"
+
 type Number *Number
 
 // -------------------------------------
@@ -116,7 +118,11 @@ var results = [...]int{
 }
 
 func main() {
-	for i := 0; i <= 9; i++ {
+	n := 9
+	if runtime.GOARCH == "wasm" {
+		n = 8 // stack size is limited
+	}
+	for i := 0; i <= n; i++ {
 		if f := count(fact(gen(i))); f != results[i] {
 			println("FAIL:", i, "!:", f, "!=", results[i])
 			panic(0)

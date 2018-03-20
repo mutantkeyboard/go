@@ -217,6 +217,7 @@ func walkswitch(sw *Node) {
 	if sw.Left == nil {
 		sw.Left = nodbool(true)
 		sw.Left = typecheck(sw.Left, Erv)
+		sw.Left = defaultlit(sw.Left, nil)
 	}
 
 	if sw.Left.Op == OTYPESW {
@@ -314,18 +315,16 @@ func (s *exprSwitch) walkCases(cc []caseClause) *Node {
 				low := nod(OGE, s.exprname, rng[0])
 				high := nod(OLE, s.exprname, rng[1])
 				a.Left = nod(OANDAND, low, high)
-				a.Left = typecheck(a.Left, Erv)
-				a.Left = walkexpr(a.Left, nil) // give walk the opportunity to optimize the range check
 			} else if (s.kind != switchKindTrue && s.kind != switchKindFalse) || assignop(n.Left.Type, s.exprname.Type, nil) == OCONVIFACE || assignop(s.exprname.Type, n.Left.Type, nil) == OCONVIFACE {
 				a.Left = nod(OEQ, s.exprname, n.Left) // if name == val
-				a.Left = typecheck(a.Left, Erv)
 			} else if s.kind == switchKindTrue {
 				a.Left = n.Left // if val
 			} else {
 				// s.kind == switchKindFalse
 				a.Left = nod(ONOT, n.Left, nil) // if !val
-				a.Left = typecheck(a.Left, Erv)
 			}
+			a.Left = typecheck(a.Left, Erv)
+			a.Left = defaultlit(a.Left, nil)
 			a.Nbody.Set1(n.Right) // goto l
 
 			cas = append(cas, a)
@@ -354,6 +353,7 @@ func (s *exprSwitch) walkCases(cc []caseClause) *Node {
 		a.Left = le
 	}
 	a.Left = typecheck(a.Left, Erv)
+	a.Left = defaultlit(a.Left, nil)
 	a.Nbody.Set1(s.walkCases(cc[:half]))
 	a.Rlist.Set1(s.walkCases(cc[half:]))
 	return a
@@ -617,10 +617,23 @@ func checkDupExprCases(exprname *Node, clauses []*Node) {
 		}
 		return
 	}
-	// s's expression is an interface. This is fairly rare, so keep this simple.
-	// Duplicates are only duplicates if they have the same type and the same value.
+
+	// s's expression is an interface. This is fairly rare, so
+	// keep this simple. Case expressions are only duplicates if
+	// they have the same value and identical types.
+	//
+	// In general, we have to use eqtype to test type identity,
+	// because == gives false negatives for anonymous types and
+	// the byte/uint8 and rune/int32 builtin type aliases.
+	// However, this is not a problem here, because constant
+	// expressions are always untyped or have a named type, and we
+	// explicitly handle the builtin type aliases below.
+	//
+	// This approach may need to be revisited though if we fix
+	// #21866 by treating all type aliases like byte/uint8 and
+	// rune/int32.
 	type typeVal struct {
-		typ string
+		typ *types.Type
 		val interface{}
 	}
 	seen := make(map[typeVal]*Node)
@@ -630,8 +643,14 @@ func checkDupExprCases(exprname *Node, clauses []*Node) {
 				continue
 			}
 			tv := typeVal{
-				typ: n.Type.LongString(),
+				typ: n.Type,
 				val: n.Val().Interface(),
+			}
+			switch tv.typ {
+			case types.Bytetype:
+				tv.typ = types.Types[TUINT8]
+			case types.Runetype:
+				tv.typ = types.Types[TINT32]
 			}
 			prev, dup := seen[tv]
 			if !dup {
@@ -727,6 +746,7 @@ func (s *typeSwitch) walk(sw *Node) {
 		def = blk
 	}
 	i.Left = typecheck(i.Left, Erv)
+	i.Left = defaultlit(i.Left, nil)
 	cas = append(cas, i)
 
 	// Load hash from type or itab.
@@ -846,6 +866,7 @@ func (s *typeSwitch) walkCases(cc []caseClause) *Node {
 			a := nod(OIF, nil, nil)
 			a.Left = nod(OEQ, s.hashname, nodintconst(int64(c.hash)))
 			a.Left = typecheck(a.Left, Erv)
+			a.Left = defaultlit(a.Left, nil)
 			a.Nbody.Set1(n.Right)
 			cas = append(cas, a)
 		}
@@ -857,6 +878,7 @@ func (s *typeSwitch) walkCases(cc []caseClause) *Node {
 	a := nod(OIF, nil, nil)
 	a.Left = nod(OLE, s.hashname, nodintconst(int64(cc[half-1].hash)))
 	a.Left = typecheck(a.Left, Erv)
+	a.Left = defaultlit(a.Left, nil)
 	a.Nbody.Set1(s.walkCases(cc[:half]))
 	a.Rlist.Set1(s.walkCases(cc[half:]))
 	return a

@@ -65,9 +65,9 @@ func ValueOf(v interface{}) Value {
 		return stringVal(v)
 	case []byte:
 		if len(v) == 0 {
-			return Uint8Array.New(memory, 0, 0)
+			return Uint8Array.New(memory.Get("buffer"), 0, 0)
 		}
-		return Uint8Array.New(memory, unsafe.Pointer(&v[0]), len(v))
+		return Uint8Array.New(memory.Get("buffer"), unsafe.Pointer(&v[0]), len(v))
 	default:
 		panic("invalid value")
 	}

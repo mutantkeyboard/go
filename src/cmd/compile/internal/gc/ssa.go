@@ -24,31 +24,7 @@ var ssaConfig *ssa.Config
 var ssaCaches []ssa.Cache
 
 func initssaconfig() {
-	types_ := ssa.Types{
-		Bool:       types.Types[TBOOL],
-		Int8:       types.Types[TINT8],
-		Int16:      types.Types[TINT16],
-		Int32:      types.Types[TINT32],
-		Int64:      types.Types[TINT64],
-		UInt8:      types.Types[TUINT8],
-		UInt16:     types.Types[TUINT16],
-		UInt32:     types.Types[TUINT32],
-		UInt64:     types.Types[TUINT64],
-		Float32:    types.Types[TFLOAT32],
-		Float64:    types.Types[TFLOAT64],
-		Int:        types.Types[TINT],
-		UInt:       types.Types[TUINT],
-		Uintptr:    types.Types[TUINTPTR],
-		String:     types.Types[TSTRING],
-		BytePtr:    types.NewPtr(types.Types[TUINT8]),
-		Int32Ptr:   types.NewPtr(types.Types[TINT32]),
-		UInt32Ptr:  types.NewPtr(types.Types[TUINT32]),
-		IntPtr:     types.NewPtr(types.Types[TINT]),
-		UintptrPtr: types.NewPtr(types.Types[TUINTPTR]),
-		Float32Ptr: types.NewPtr(types.Types[TFLOAT32]),
-		Float64Ptr: types.NewPtr(types.Types[TFLOAT64]),
-		BytePtrPtr: types.NewPtr(types.NewPtr(types.Types[TUINT8])),
-	}
+	types_ := ssa.NewTypes()
 
 	if thearch.SoftFloat {
 		softfloatInit()
@@ -69,7 +45,7 @@ func initssaconfig() {
 	_ = types.NewPtr(types.Types[TINT64])                             // *int64
 	_ = types.NewPtr(types.Errortype)                                 // *error
 	types.NewPtrCacheEnabled = false
-	ssaConfig = ssa.NewConfig(thearch.LinkArch.Name, types_, Ctxt, Debug['N'] == 0)
+	ssaConfig = ssa.NewConfig(thearch.LinkArch.Name, *types_, Ctxt, Debug['N'] == 0)
 	if thearch.LinkArch.Name == "386" {
 		ssaConfig.Set387(thearch.Use387)
 	}
@@ -95,7 +71,6 @@ func initssaconfig() {
 	assertI2I2 = sysfunc("assertI2I2")
 	goschedguarded = sysfunc("goschedguarded")
 	writeBarrier = sysfunc("writeBarrier")
-	writebarrierptr = sysfunc("writebarrierptr")
 	gcWriteBarrier = sysfunc("gcWriteBarrier")
 	typedmemmove = sysfunc("typedmemmove")
 	typedmemclr = sysfunc("typedmemclr")
@@ -150,7 +125,6 @@ func buildssa(fn *Node, worker int) *ssa.Func {
 	if fn.Func.Pragma&Nosplit != 0 {
 		s.f.NoSplit = true
 	}
-	s.exitCode = fn.Func.Exit
 	s.panics = map[funcLine]*ssa.Block{}
 	s.softFloat = s.config.SoftFloat
 
@@ -223,9 +197,6 @@ func buildssa(fn *Node, worker int) *ssa.Func {
 
 	s.insertPhis()
 
-	// Don't carry reference this around longer than necessary
-	s.exitCode = Nodes{}
-
 	// Main call to ssa package to compile function
 	ssa.Compile(s.f)
 	return s.f
@@ -277,10 +248,6 @@ type state struct {
 	// labels and labeled control flow nodes (OFOR, OFORUNTIL, OSWITCH, OSELECT) in f
 	labels       map[string]*ssaLabel
 	labeledNodes map[*Node]*ssaLabel
-
-	// Code that must precede any return
-	// (e.g., copying value of heap-escaped paramout back to true paramout)
-	exitCode Nodes
 
 	// unlabeled break and continue statement tracking
 	breakTo    *ssa.Block // current target for plain break statement
@@ -1050,7 +1017,7 @@ func (s *state) exit() *ssa.Block {
 
 	// Run exit code. Typically, this code copies heap-allocated PPARAMOUT
 	// variables back to the stack.
-	s.stmtList(s.exitCode)
+	s.stmtList(s.curfn.Func.Exit)
 
 	// Store SSAable PPARAMOUT variables back to stack locations.
 	for _, n := range s.returns {
@@ -2925,27 +2892,27 @@ func init() {
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue1(ssa.OpSqrt, types.Types[TFLOAT64], args[0])
 		},
-		sys.AMD64, sys.ARM, sys.ARM64, sys.MIPS, sys.PPC64, sys.S390X)
+		sys.I386, sys.AMD64, sys.ARM, sys.ARM64, sys.MIPS, sys.MIPS64, sys.PPC64, sys.S390X)
 	addF("math", "Trunc",
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue1(ssa.OpTrunc, types.Types[TFLOAT64], args[0])
 		},
-		sys.PPC64, sys.S390X)
+		sys.ARM64, sys.PPC64, sys.S390X)
 	addF("math", "Ceil",
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue1(ssa.OpCeil, types.Types[TFLOAT64], args[0])
 		},
-		sys.PPC64, sys.S390X)
+		sys.ARM64, sys.PPC64, sys.S390X)
 	addF("math", "Floor",
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue1(ssa.OpFloor, types.Types[TFLOAT64], args[0])
 		},
-		sys.PPC64, sys.S390X)
+		sys.ARM64, sys.PPC64, sys.S390X)
 	addF("math", "Round",
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue1(ssa.OpRound, types.Types[TFLOAT64], args[0])
 		},
-		sys.S390X)
+		sys.ARM64, sys.S390X)
 	addF("math", "RoundToEven",
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue1(ssa.OpRoundToEven, types.Types[TFLOAT64], args[0])
@@ -3168,7 +3135,7 @@ func init() {
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue1(ssa.OpPopCount64, types.Types[TINT], args[0])
 		},
-		sys.PPC64)
+		sys.PPC64, sys.ARM64)
 	addF("math/bits", "OnesCount32",
 		makeOnesCountAMD64(ssa.OpPopCount32, ssa.OpPopCount32),
 		sys.AMD64)
@@ -3176,10 +3143,15 @@ func init() {
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue1(ssa.OpPopCount32, types.Types[TINT], args[0])
 		},
-		sys.PPC64)
+		sys.PPC64, sys.ARM64)
 	addF("math/bits", "OnesCount16",
 		makeOnesCountAMD64(ssa.OpPopCount16, ssa.OpPopCount16),
 		sys.AMD64)
+	addF("math/bits", "OnesCount16",
+		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
+			return s.newValue1(ssa.OpPopCount16, types.Types[TINT], args[0])
+		},
+		sys.ARM64)
 	// Note: no OnesCount8, the Go implementation is faster - just a table load.
 	addF("math/bits", "OnesCount",
 		makeOnesCountAMD64(ssa.OpPopCount64, ssa.OpPopCount32),
@@ -4596,6 +4568,8 @@ type SSAGenState struct {
 	// Map from GC safe points to stack map index, generated by
 	// liveness analysis.
 	stackMapIndex map[*ssa.Value]int
+
+	WasmStackSize int
 }
 
 // Prog appends a new Prog.
@@ -4664,15 +4638,20 @@ func genssa(f *ssa.Func, pp *Progs) {
 
 	s.ScratchFpMem = e.scratchFpMem
 
-	logLocationLists := Debug_locationlist != 0
 	if Ctxt.Flag_locationlists {
-		e.curfn.Func.DebugInfo = ssa.BuildFuncDebug(f, logLocationLists)
-		valueToProgAfter = make([]*obj.Prog, f.NumValues())
+		if cap(f.Cache.ValueToProgAfter) < f.NumValues() {
+			f.Cache.ValueToProgAfter = make([]*obj.Prog, f.NumValues())
+		}
+		valueToProgAfter = f.Cache.ValueToProgAfter[:f.NumValues()]
+		for i := range valueToProgAfter {
+			valueToProgAfter[i] = nil
+		}
 	}
 
 	// Emit basic blocks
 	for i, b := range f.Blocks {
 		s.bstart[b.ID] = s.pp.next
+
 		// Emit values in block
 		thearch.SSAMarkMoves(&s, b)
 		for _, v := range b.Values {
@@ -4710,8 +4689,6 @@ func genssa(f *ssa.Func, pp *Progs) {
 				}
 			case ssa.OpPhi:
 				CheckLoweredPhi(v)
-			case ssa.OpRegKill:
-				// nothing to do
 			default:
 				// let the backend handle it
 				thearch.SSAGenValue(&s, v)
@@ -4720,12 +4697,14 @@ func genssa(f *ssa.Func, pp *Progs) {
 			if Ctxt.Flag_locationlists {
 				valueToProgAfter[v.ID] = s.pp.next
 			}
+
 			if logProgs {
 				for ; x != s.pp.next; x = x.Link {
 					progToValue[x] = v
 				}
 			}
 		}
+
 		// Emit control flow instructions for block
 		var next *ssa.Block
 		if i < len(f.Blocks)-1 && Debug['N'] == 0 {
@@ -4746,41 +4725,19 @@ func genssa(f *ssa.Func, pp *Progs) {
 	}
 
 	if Ctxt.Flag_locationlists {
-		for i := range f.Blocks {
-			blockDebug := e.curfn.Func.DebugInfo.Blocks[i]
-			for _, locList := range blockDebug.Variables {
-				for _, loc := range locList.Locations {
-					if loc.Start == ssa.BlockStart {
-						loc.StartProg = s.bstart[f.Blocks[i].ID]
-					} else {
-						loc.StartProg = valueToProgAfter[loc.Start.ID]
-					}
-					if loc.End == nil {
-						Fatalf("empty loc %v compiling %v", loc, f.Name)
-					}
-
-					if loc.End == ssa.BlockEnd {
-						// If this variable was live at the end of the block, it should be
-						// live over the control flow instructions. Extend it up to the
-						// beginning of the next block.
-						// If this is the last block, then there's no Prog to use for it, and
-						// EndProg is unset.
-						if i < len(f.Blocks)-1 {
-							loc.EndProg = s.bstart[f.Blocks[i+1].ID]
-						}
-					} else {
-						// Advance the "end" forward by one; the end-of-range doesn't take effect
-						// until the instruction actually executes.
-						loc.EndProg = valueToProgAfter[loc.End.ID].Link
-						if loc.EndProg == nil {
-							Fatalf("nil loc.EndProg compiling %v, loc=%v", f.Name, loc)
-						}
-					}
-					if !logLocationLists {
-						loc.Start = nil
-						loc.End = nil
-					}
-				}
+		e.curfn.Func.DebugInfo = ssa.BuildFuncDebug(Ctxt, f, Debug_locationlist > 1, stackOffset)
+		bstart := s.bstart
+		// Note that at this moment, Prog.Pc is a sequence number; it's
+		// not a real PC until after assembly, so this mapping has to
+		// be done later.
+		e.curfn.Func.DebugInfo.GetPC = func(b, v ssa.ID) int64 {
+			switch v {
+			case ssa.BlockStart.ID:
+				return bstart[b].Pc
+			case ssa.BlockEnd.ID:
+				return e.curfn.Func.lsym.Size
+			default:
+				return valueToProgAfter[v].Pc
 			}
 		}
 	}
@@ -5104,7 +5061,7 @@ func (s *SSAGenState) AddrScratch(a *obj.Addr) {
 	a.Offset = s.ScratchFpMem.Xoffset
 }
 
-func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
+func (s *SSAGenState) PrepareCall(v *ssa.Value) {
 	idx, ok := s.stackMapIndex[v]
 	if !ok {
 		Fatalf("missing stack map index for %v", v.LongString())
@@ -5125,17 +5082,27 @@ func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
 		thearch.Ginsnop(s.pp)
 	}
 
-	p = s.Prog(obj.ACALL)
 	if sym, ok := v.Aux.(*obj.LSym); ok {
-		p.To.Type = obj.TYPE_MEM
-		p.To.Name = obj.NAME_EXTERN
-		p.To.Sym = sym
-
 		// Record call graph information for nowritebarrierrec
 		// analysis.
 		if nowritebarrierrecCheck != nil {
 			nowritebarrierrecCheck.recordCall(s.pp.curfn, sym, v.Pos)
 		}
+	}
+
+	if s.maxarg < v.AuxInt {
+		s.maxarg = v.AuxInt
+	}
+}
+
+func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
+	s.PrepareCall(v)
+
+	p := s.Prog(obj.ACALL)
+	if sym, ok := v.Aux.(*obj.LSym); ok {
+		p.To.Type = obj.TYPE_MEM
+		p.To.Name = obj.NAME_EXTERN
+		p.To.Sym = sym
 	} else {
 		// TODO(mdempsky): Can these differences be eliminated?
 		switch thearch.LinkArch.Family {
@@ -5147,9 +5114,6 @@ func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
 			Fatalf("unknown indirect call family")
 		}
 		p.To.Reg = v.Args[0].Reg()
-	}
-	if s.maxarg < v.AuxInt {
-		s.maxarg = v.AuxInt
 	}
 	return p
 }
@@ -5225,6 +5189,7 @@ func (e *ssafn) SplitString(name ssa.LocalSlot) (ssa.LocalSlot, ssa.LocalSlot) {
 
 func (e *ssafn) SplitInterface(name ssa.LocalSlot) (ssa.LocalSlot, ssa.LocalSlot) {
 	n := name.N.(*Node)
+	u := types.Types[TUINTPTR]
 	t := types.NewPtr(types.Types[TUINT8])
 	if n.Class() == PAUTO && !n.Addrtaken() {
 		// Split this interface up into two separate variables.
@@ -5232,12 +5197,12 @@ func (e *ssafn) SplitInterface(name ssa.LocalSlot) (ssa.LocalSlot, ssa.LocalSlot
 		if n.Type.IsEmptyInterface() {
 			f = ".type"
 		}
-		c := e.splitSlot(&name, f, 0, t)
-		d := e.splitSlot(&name, ".data", t.Size(), t)
+		c := e.splitSlot(&name, f, 0, u) // see comment in plive.go:onebitwalktype1.
+		d := e.splitSlot(&name, ".data", u.Size(), t)
 		return c, d
 	}
 	// Return the two parts of the larger variable.
-	return ssa.LocalSlot{N: n, Type: t, Off: name.Off}, ssa.LocalSlot{N: n, Type: t, Off: name.Off + int64(Widthptr)}
+	return ssa.LocalSlot{N: n, Type: u, Off: name.Off}, ssa.LocalSlot{N: n, Type: t, Off: name.Off + int64(Widthptr)}
 }
 
 func (e *ssafn) SplitSlice(name ssa.LocalSlot) (ssa.LocalSlot, ssa.LocalSlot, ssa.LocalSlot) {
@@ -5391,10 +5356,6 @@ func (e *ssafn) Debug_checknil() bool {
 	return Debug_checknil != 0
 }
 
-func (e *ssafn) Debug_eagerwb() bool {
-	return Debug_eagerwb != 0
-}
-
 func (e *ssafn) UseWriteBarrier() bool {
 	return use_writebarrier
 }
@@ -5405,8 +5366,6 @@ func (e *ssafn) Syslook(name string) *obj.LSym {
 		return goschedguarded
 	case "writeBarrier":
 		return writeBarrier
-	case "writebarrierptr":
-		return writebarrierptr
 	case "gcWriteBarrier":
 		return gcWriteBarrier
 	case "typedmemmove":

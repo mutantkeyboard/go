@@ -320,9 +320,7 @@ func TestLookupGoogleHost(t *testing.T) {
 }
 
 func TestLookupLongTXT(t *testing.T) {
-	if runtime.GOOS == "plan9" {
-		t.Skip("skipping on plan9; see https://golang.org/issue/22857")
-	}
+	testenv.SkipFlaky(t, 22857)
 	if testenv.Builder() == "" {
 		testenv.MustHaveExternalNetwork(t)
 	}
@@ -664,10 +662,10 @@ func srvString(srvs []*SRV) string {
 }
 
 func TestLookupPort(t *testing.T) {
-	// See http://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml
+	// See https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml
 	//
 	// Please be careful about adding new test cases.
-	// There are platforms having incomplete mappings for
+	// There are platforms which have incomplete mappings for
 	// restricted resource access and security reasons.
 	type test struct {
 		network string

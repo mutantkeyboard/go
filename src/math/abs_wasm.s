@@ -8,5 +8,5 @@ TEXT ·Abs(SB),NOSPLIT,$0
     Get SP
       F64Load x+0(FP)
     F64Abs
-	F64Store ret+8(FP)
+  F64Store ret+8(FP)
   RET

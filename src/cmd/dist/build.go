@@ -786,12 +786,17 @@ func runInstall(dir string, ch chan struct{}) {
 	} else {
 		archive = b
 	}
-	compile := []string{pathf("%s/compile", tooldir), "-pack", "-o", b, "-p", pkg}
+	compile := []string{pathf("%s/compile", tooldir), "-std", "-pack", "-o", b, "-p", pkg}
 	if gogcflags != "" {
 		compile = append(compile, strings.Fields(gogcflags)...)
 	}
 	if dir == "runtime" {
 		compile = append(compile, "-+", "-asmhdr", pathf("%s/go_asm.h", workdir))
+	}
+	if dir == "internal/bytealg" {
+		// TODO: why don't we generate go_asm.h for all packages
+		// that have any assembly?
+		compile = append(compile, "-asmhdr", pathf("%s/go_asm.h", workdir))
 	}
 	compile = append(compile, gofiles...)
 	run(path, CheckExit|ShowOutput, compile...)

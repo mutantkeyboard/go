@@ -47,7 +47,7 @@ const (
 	// name constraints, but leaf certificate contains a name of an
 	// unsupported or unconstrained type.
 	UnconstrainedName
-	// TooManyConstraints results when the number of comparision operations
+	// TooManyConstraints results when the number of comparison operations
 	// needed to check a certificate exceeds the limit set by
 	// VerifyOptions.MaxConstraintComparisions. This limit exists to
 	// prevent pathological certificates can consuming excessive amounts of
@@ -185,7 +185,7 @@ type VerifyOptions struct {
 	KeyUsages []ExtKeyUsage
 	// MaxConstraintComparisions is the maximum number of comparisons to
 	// perform when checking a given certificate's name constraints. If
-	// zero, a sensible default is used. This limit prevents pathalogical
+	// zero, a sensible default is used. This limit prevents pathological
 	// certificates from consuming excessive amounts of CPU time when
 	// validating.
 	MaxConstraintComparisions int
@@ -543,11 +543,16 @@ func (c *Certificate) checkNameConstraints(count *int,
 	return nil
 }
 
+const (
+	checkingAgainstIssuerCert = iota
+	checkingAgainstLeafCert
+)
+
 // ekuPermittedBy returns true iff the given extended key usage is permitted by
 // the given EKU from a certificate. Normally, this would be a simple
 // comparison plus a special case for the “any” EKU. But, in order to support
 // existing certificates, some exceptions are made.
-func ekuPermittedBy(eku, certEKU ExtKeyUsage) bool {
+func ekuPermittedBy(eku, certEKU ExtKeyUsage, context int) bool {
 	if certEKU == ExtKeyUsageAny || eku == certEKU {
 		return true
 	}
@@ -564,18 +569,23 @@ func ekuPermittedBy(eku, certEKU ExtKeyUsage) bool {
 	eku = mapServerAuthEKUs(eku)
 	certEKU = mapServerAuthEKUs(certEKU)
 
-	if eku == certEKU ||
-		// ServerAuth in a CA permits ClientAuth in the leaf.
-		(eku == ExtKeyUsageClientAuth && certEKU == ExtKeyUsageServerAuth) ||
+	if eku == certEKU {
+		return true
+	}
+
+	// If checking a requested EKU against the list in a leaf certificate there
+	// are fewer exceptions.
+	if context == checkingAgainstLeafCert {
+		return false
+	}
+
+	// ServerAuth in a CA permits ClientAuth in the leaf.
+	return (eku == ExtKeyUsageClientAuth && certEKU == ExtKeyUsageServerAuth) ||
 		// Any CA may issue an OCSP responder certificate.
 		eku == ExtKeyUsageOCSPSigning ||
 		// Code-signing CAs can use Microsoft's commercial and
 		// kernel-mode EKUs.
-		((eku == ExtKeyUsageMicrosoftCommercialCodeSigning || eku == ExtKeyUsageMicrosoftKernelCodeSigning) && certEKU == ExtKeyUsageCodeSigning) {
-		return true
-	}
-
-	return false
+		(eku == ExtKeyUsageMicrosoftCommercialCodeSigning || eku == ExtKeyUsageMicrosoftKernelCodeSigning) && certEKU == ExtKeyUsageCodeSigning
 }
 
 // isValid performs validity checks on c given that it is a candidate to append
@@ -630,8 +640,7 @@ func (c *Certificate) isValid(certType int, currentChain []*Certificate, opts *V
 				name := string(data)
 				mailbox, ok := parseRFC2821Mailbox(name)
 				if !ok {
-					// This certificate should not have parsed.
-					return errors.New("x509: internal error: rfc822Name SAN failed to parse")
+					return fmt.Errorf("x509: cannot parse rfc822Name %q", mailbox)
 				}
 
 				if err := c.checkNameConstraints(&comparisonCount, maxConstraintComparisons, "email address", name, mailbox,
@@ -643,6 +652,10 @@ func (c *Certificate) isValid(certType int, currentChain []*Certificate, opts *V
 
 			case nameTypeDNS:
 				name := string(data)
+				if _, ok := domainToReverseLabels(name); !ok {
+					return fmt.Errorf("x509: cannot parse dnsName %q", name)
+				}
+
 				if err := c.checkNameConstraints(&comparisonCount, maxConstraintComparisons, "DNS name", name, name,
 					func(parsedName, constraint interface{}) (bool, error) {
 						return matchDomainConstraint(parsedName.(string), constraint.(string))
@@ -716,7 +729,7 @@ func (c *Certificate) isValid(certType int, currentChain []*Certificate, opts *V
 
 			for _, caEKU := range c.ExtKeyUsage {
 				comparisonCount++
-				if ekuPermittedBy(eku, caEKU) {
+				if ekuPermittedBy(eku, caEKU, checkingAgainstIssuerCert) {
 					continue NextEKU
 				}
 			}
@@ -850,7 +863,7 @@ func (c *Certificate) Verify(opts VerifyOptions) (chains [][]*Certificate, err e
 	NextUsage:
 		for _, eku := range requestedKeyUsages {
 			for _, leafEKU := range c.ExtKeyUsage {
-				if ekuPermittedBy(eku, leafEKU) {
+				if ekuPermittedBy(eku, leafEKU, checkingAgainstLeafCert) {
 					continue NextUsage
 				}
 			}

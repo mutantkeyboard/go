@@ -4,41 +4,6 @@
 
 #include "textflag.h"
 
-TEXT runtime·wasmcall(SB), NOSPLIT, $0-0
-      Get SP
-      I32Const $8
-    I32Sub
-	Set SP
-
-	  Get SP
-	    Get $1
-    I64ExtendUI32
-	I64Store $0
-
-	  Get SP
-    Get PC_F
-	I32Store16 $2
-
-	  Get $0
-	Set PC_F
-
-	  I32Const $0
-	Set PC_B
-
-TEXT runtime·wasmreturn(SB), NOSPLIT, $0-0
-	    Get SP
-	  I32Load16U $0
-	Set PC_B
-
-      Get SP
-    I32Load16U $2
-	Set PC_F
-
-	    Get SP
-	    I32Const $8
-	  I32Add
-	Set SP
-
 TEXT runtime·wasmmove(SB), NOSPLIT, $0-0
   Block
     Loop
@@ -147,9 +112,11 @@ TEXT runtime·wasmtrunc(SB), NOSPLIT, $0-0
   I64TruncSF64
 
 TEXT runtime·exit(SB), NOSPLIT, $0-8
-  Call runtime·wasmexit(SB)
+    Call runtime·wasmexit(SB)
+  Drop
     I32Const $0
   Set SP
+  I32Const $1
 
 TEXT runtime·exitThread(SB), NOSPLIT, $0-0
   Unreachable
@@ -163,26 +130,31 @@ TEXT runtime·osyield(SB), NOSPLIT, $0-0
 TEXT runtime·usleep(SB), NOSPLIT, $0-0
   RET // FIXME
 
-TEXT runtime·IndexByte(SB), NOSPLIT, $0-0
-  Unreachable
-
-TEXT runtime·growMemory(SB), NOSPLIT, $0-12
+TEXT runtime·currentMemory(SB), NOSPLIT, $0
     Get SP
-        I32Load pages+0(FP)
-        CurrentMemory
-      I32Sub
+    CurrentMemory
+  I32Store ret+0(FP)
+  RET
+
+TEXT runtime·growMemory(SB), NOSPLIT, $0
+    Get SP
+      I32Load pages+0(FP)
     GrowMemory
   I32Store ret+8(FP)
   RET
 
 TEXT ·wasmexit(SB), NOSPLIT, $0
   CallImport
+  RET
 
 TEXT ·wasmwrite(SB), NOSPLIT, $0
   CallImport
+  RET
 
 TEXT ·nanotime(SB), NOSPLIT, $0
   CallImport
+  RET
 
 TEXT ·walltime(SB), NOSPLIT, $0
   CallImport
+  RET

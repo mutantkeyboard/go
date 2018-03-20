@@ -5,10 +5,10 @@
 #include "textflag.h"
 
 TEXT ·SwapInt32(SB),NOSPLIT,$0-20
-	JMP	·SwapUint32(SB)
+  JMP ·SwapUint32(SB)
 
 TEXT ·SwapUint32(SB),NOSPLIT,$0-20
-	  I64Load addr+0(FP)
+    I64Load addr+0(FP)
   Set I0
 
     Get SP
@@ -23,10 +23,10 @@ TEXT ·SwapUint32(SB),NOSPLIT,$0-20
   RET
 
 TEXT ·SwapInt64(SB),NOSPLIT,$0-24
-	JMP	·SwapUint64(SB)
+  JMP ·SwapUint64(SB)
 
 TEXT ·SwapUint64(SB),NOSPLIT,$0-24
-	  I64Load addr+0(FP)
+    I64Load addr+0(FP)
   Set I0
 
     Get SP
@@ -41,10 +41,10 @@ TEXT ·SwapUint64(SB),NOSPLIT,$0-24
   RET
 
 TEXT ·SwapUintptr(SB),NOSPLIT,$0-24
-	JMP	·SwapUint64(SB)
+  JMP ·SwapUint64(SB)
 
 TEXT ·CompareAndSwapInt32(SB),NOSPLIT,$0-17
-	JMP	·CompareAndSwapUint32(SB)
+  JMP ·CompareAndSwapUint32(SB)
 
 TEXT ·CompareAndSwapUint32(SB),NOSPLIT,$0-17
   Block
@@ -74,10 +74,10 @@ TEXT ·CompareAndSwapUint32(SB),NOSPLIT,$0-17
   RET
 
 TEXT ·CompareAndSwapUintptr(SB),NOSPLIT,$0-25
-	JMP	·CompareAndSwapUint64(SB)
+  JMP ·CompareAndSwapUint64(SB)
 
 TEXT ·CompareAndSwapInt64(SB),NOSPLIT,$0-25
-	JMP	·CompareAndSwapUint64(SB)
+  JMP ·CompareAndSwapUint64(SB)
 
 TEXT ·CompareAndSwapUint64(SB),NOSPLIT,$0-25
   Block
@@ -107,7 +107,7 @@ TEXT ·CompareAndSwapUint64(SB),NOSPLIT,$0-25
   RET
 
 TEXT ·AddInt32(SB),NOSPLIT,$0-20
-	JMP	·AddUint32(SB)
+  JMP ·AddUint32(SB)
 
 TEXT ·AddUint32(SB),NOSPLIT,$0-20
     I64Load addr+0(FP)
@@ -127,13 +127,13 @@ TEXT ·AddUint32(SB),NOSPLIT,$0-20
     Get I1
   I64Store32 new+16(FP)
 
-	RET
+  RET
 
 TEXT ·AddUintptr(SB),NOSPLIT,$0-24
-	JMP	·AddUint64(SB)
+  JMP ·AddUint64(SB)
 
 TEXT ·AddInt64(SB),NOSPLIT,$0-24
-	JMP	·AddUint64(SB)
+  JMP ·AddUint64(SB)
 
 TEXT ·AddUint64(SB),NOSPLIT,$0-24
     I64Load addr+0(FP)
@@ -153,10 +153,10 @@ TEXT ·AddUint64(SB),NOSPLIT,$0-24
     Get I1
   I64Store new+16(FP)
 
-	RET
+  RET
 
 TEXT ·LoadInt32(SB),NOSPLIT,$0-12
-	JMP	·LoadUint32(SB)
+  JMP ·LoadUint32(SB)
 
 TEXT ·LoadUint32(SB),NOSPLIT,$0-12
     Get SP
@@ -164,16 +164,16 @@ TEXT ·LoadUint32(SB),NOSPLIT,$0-12
       I32WrapI64
     I64Load32U $0
   I64Store32 val+8(FP)
-	RET
+  RET
 
 TEXT ·LoadInt64(SB),NOSPLIT,$0-16
-	JMP	·LoadUint64(SB)
+  JMP ·LoadUint64(SB)
 
 TEXT ·LoadUintptr(SB),NOSPLIT,$0-16
-	JMP	·LoadUint64(SB)
+  JMP ·LoadUint64(SB)
 
 TEXT ·LoadPointer(SB),NOSPLIT,$0-16
-  JMP	·LoadUint64(SB)
+  JMP ·LoadUint64(SB)
 
 TEXT ·LoadUint64(SB),NOSPLIT,$0-16
     Get SP
@@ -181,10 +181,10 @@ TEXT ·LoadUint64(SB),NOSPLIT,$0-16
       I32WrapI64
     I64Load $0
   I64Store val+8(FP)
-	RET
+  RET
 
 TEXT ·StoreInt32(SB),NOSPLIT,$0-12
-	JMP	·StoreUint32(SB)
+  JMP ·StoreUint32(SB)
 
 TEXT ·StoreUint32(SB),NOSPLIT,$0-12
       I64Load addr+0(FP)
@@ -194,7 +194,7 @@ TEXT ·StoreUint32(SB),NOSPLIT,$0-12
   RET
 
 TEXT ·StoreInt64(SB),NOSPLIT,$0-16
-	JMP	·StoreUint64(SB)
+  JMP ·StoreUint64(SB)
 
 TEXT ·StoreUint64(SB),NOSPLIT,$0-16
       I64Load addr+0(FP)
@@ -204,4 +204,4 @@ TEXT ·StoreUint64(SB),NOSPLIT,$0-16
   RET
 
 TEXT ·StoreUintptr(SB),NOSPLIT,$0-16
-	JMP	·StoreUint64(SB)
+  JMP ·StoreUint64(SB)

@@ -44,7 +44,6 @@ var (
 	Debug_slice        int
 	Debug_vlog         bool
 	Debug_wb           int
-	Debug_eagerwb      int
 	Debug_pctab        string
 	Debug_locationlist int
 	Debug_typecheckinl int
@@ -73,7 +72,6 @@ var debugtab = []struct {
 	{"slice", "print information about slice compilation", &Debug_slice},
 	{"typeassert", "print information about type assertion inlining", &Debug_typeassert},
 	{"wb", "print information about write barriers", &Debug_wb},
-	{"eagerwb", "use unbuffered write barrier", &Debug_eagerwb},
 	{"export", "print export data", &Debug_export},
 	{"pctab", "print named pc-value table", &Debug_pctab},
 	{"locationlists", "print information about DWARF location list creation", &Debug_locationlist},
@@ -96,8 +94,8 @@ Key "pctab" supports values:
 `
 
 func usage() {
-	fmt.Printf("usage: compile [options] file.go...\n")
-	objabi.Flagprint(1)
+	fmt.Fprintf(os.Stderr, "usage: compile [options] file.go...\n")
+	objabi.Flagprint(os.Stderr)
 	Exit(2)
 }
 
@@ -407,13 +405,7 @@ func Main(archInit func(*Arch)) {
 		Debug['l'] = 1 - Debug['l']
 	}
 
-	// The buffered write barrier is only implemented on amd64
-	// right now.
-	if objabi.GOARCH != "amd64" {
-		Debug_eagerwb = 1
-	}
-
-	trackScopes = flagDWARF && ((Debug['l'] == 0 && Debug['N'] != 0) || Ctxt.Flag_locationlists)
+	trackScopes = flagDWARF && (Debug['l'] == 0 && Debug['N'] != 0)
 
 	Widthptr = thearch.LinkArch.PtrSize
 	Widthreg = thearch.LinkArch.RegSize

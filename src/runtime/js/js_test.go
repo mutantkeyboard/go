@@ -20,31 +20,6 @@ var dummys = js.Global.Call("eval", `({
 	add: function(a, b) {
 		return a + b;
 	},
-	mapArray: function(array, f) {
-		var newArray = new Array(array.length);
-		for (var i = 0; i < array.length; i++) {
-			newArray[i] = f(array[i]);
-		}
-		return newArray;
-	},
-	toUnixTimestamp: function(d) {
-		return d.getTime() / 1000;
-	},
-	testField: function(o) {
-		return o.Field;
-	},
-	testMethod: function(o) {
-		return o.Method(42);
-	},
-	isEqual: function(a, b) {
-		return a === b;
-	},
-	call: function(f, a) {
-		f(a);
-	},
-	return: function(x) {
-		return x;
-	},
 })`)
 
 func TestBool(t *testing.T) {
@@ -53,9 +28,6 @@ func TestBool(t *testing.T) {
 	if v := o.Bool(); v != e {
 		t.Errorf("expected %#v, got %#v", e, v)
 	}
-	// if i := o.Interface().(bool); i != e {
-	// 	t.Errorf("expected %#v, got %#v", e, i)
-	// }
 	if dummys.Set("otherBool", e); dummys.Get("otherBool").Bool() != e {
 		t.Fail()
 	}
@@ -67,9 +39,6 @@ func TestString(t *testing.T) {
 	if v := o.String(); v != e {
 		t.Errorf("expected %#v, got %#v", e, v)
 	}
-	// if i := o.Interface().(string); i != e {
-	// 	t.Errorf("expected %#v, got %#v", e, i)
-	// }
 	if dummys.Set("otherString", e); dummys.Get("otherString").String() != e {
 		t.Fail()
 	}
@@ -81,9 +50,6 @@ func TestInt(t *testing.T) {
 	if v := o.Int(); v != e {
 		t.Errorf("expected %#v, got %#v", e, v)
 	}
-	// 	if i := int(o.Interface().(float64)); i != e {
-	// 		t.Errorf("expected %#v, got %#v", e, i)
-	// 	}
 	if dummys.Set("otherInt", e); dummys.Get("otherInt").Int() != e {
 		t.Fail()
 	}
@@ -95,9 +61,6 @@ func TestFloat(t *testing.T) {
 	if v := o.Float(); v != e {
 		t.Errorf("expected %#v, got %#v", e, v)
 	}
-	// 	if i := o.Interface().(float64); i != e {
-	// 		t.Errorf("expected %#v, got %#v", e, i)
-	// 	}
 	if dummys.Set("otherFloat", e); dummys.Get("otherFloat").Float() != e {
 		t.Fail()
 	}
@@ -159,6 +122,7 @@ func TestNew(t *testing.T) {
 		t.Fail()
 	}
 }
+<<<<<<< HEAD
 
 // func TestFunc(t *testing.T) {
 // 	a := dummys.Call("mapArray", []int{1, 2, 3}, func(e int64) int64 { return e + 40 })
@@ -492,3 +456,5 @@ func TestNew(t *testing.T) {
 // 		}
 // 	}
 // }
+=======
+>>>>>>> upstream/wasm-wip

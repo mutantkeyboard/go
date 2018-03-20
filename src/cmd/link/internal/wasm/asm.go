@@ -106,22 +106,40 @@ func makeImportMap() map[string]int32 {
 	return m
 }
 
+var wasmSignatures = map[string]*WasmSignature{
+	"_rt0_wasm_js":           &WasmSignature{Params: []byte{I32, I32}},
+	"runtime.wasmmove":       &WasmSignature{Params: []byte{I32, I32, I32}},
+	"runtime.wasmzero":       &WasmSignature{Params: []byte{I32, I32}},
+	"runtime.wasmdiv":        &WasmSignature{Params: []byte{I64, I64}, Results: []byte{I64}},
+	"runtime.wasmtrunc":      &WasmSignature{Params: []byte{F64}, Results: []byte{I64}},
+	"runtime.cmpbody":        &WasmSignature{Params: []byte{I64, I64, I64, I64}, Results: []byte{I64}},
+	"runtime.memeqbody":      &WasmSignature{Params: []byte{I64, I64, I64}, Results: []byte{I64}},
+	"runtime.memcmp":         &WasmSignature{Params: []byte{I32, I32, I32}, Results: []byte{I32}},
+	"runtime.memchr":         &WasmSignature{Params: []byte{I32, I32, I32}, Results: []byte{I32}},
+	"runtime.gcWriteBarrier": &WasmSignature{Params: []byte{I32, I64}, Results: []byte{I32}},
+}
+
 func asmb(ctxt *ld.Link) {
 	if ctxt.Debugvlog != 0 {
 		ctxt.Logf("%5.2f asmb\n", ld.Cputime())
 	}
 
 	types := []*WasmSignature{
-		&WasmSignature{},
+		&WasmSignature{Results: []byte{I32}},
 	}
 	lookupType := func(sig *WasmSignature) uint32 {
+		for i, t := range types {
+			if bytes.Equal(sig.Params, t.Params) && bytes.Equal(sig.Results, t.Results) {
+				return uint32(i)
+			}
+		}
 		types = append(types, sig)
 		return uint32(len(types) - 1)
 	}
 
 	var importedFns = []*WasmFunc{
-		&WasmFunc{Name: "trace", Type: lookupType(&WasmSignature{
-			Params: []byte{I32, I32, I32},
+		&WasmFunc{Name: "debug", Type: lookupType(&WasmSignature{
+			Params: []byte{I32},
 		})},
 	}
 	for _, name := range imports {
@@ -134,8 +152,10 @@ func asmb(ctxt *ld.Link) {
 	fns := make([]*WasmFunc, len(ctxt.Textp))
 	for i, fn := range ctxt.Textp {
 		wfn := new(bytes.Buffer)
-		if fn.Name == "go.buildid" {
+		if fn.Name == "go.buildid" || fn.Name == "runtime.skipPleaseUseCallersFrames" {
 			writeUleb128(wfn, 0) // number of sets of locals
+			wfn.WriteByte(0x41)  // i32.const
+			writeSleb128(wfn, 0) // offset
 			wfn.WriteByte(0x0b)  // end
 
 		} else {
@@ -144,7 +164,6 @@ func asmb(ctxt *ld.Link) {
 				wfn.Write(fn.P[off:r.Off])
 				off = r.Off
 				var idx int32
-				// fmt.Println(r.Type, r.Sym, r.Sym.Value)
 				switch r.Type {
 				case objabi.R_ADDR:
 					idx = int32(r.Sym.Value)
@@ -165,29 +184,8 @@ func asmb(ctxt *ld.Link) {
 		}
 
 		typ := uint32(0)
-		switch fn.Name {
-		case "_rt0_wasm_js":
-			typ = lookupType(&WasmSignature{Params: []byte{I32, I32, I32}}) // argc, argv, traceEnabled
-		case "runtime.wasmcall":
-			typ = lookupType(&WasmSignature{Params: []byte{I32, I32}})
-		case "runtime.wasmreturn":
-			typ = lookupType(&WasmSignature{})
-		case "runtime.wasmmove":
-			typ = lookupType(&WasmSignature{Params: []byte{I32, I32, I32}})
-		case "runtime.wasmzero":
-			typ = lookupType(&WasmSignature{Params: []byte{I32, I32}})
-		case "runtime.wasmdiv":
-			typ = lookupType(&WasmSignature{Params: []byte{I64, I64}, Results: []byte{I64}})
-		case "runtime.wasmtrunc":
-			typ = lookupType(&WasmSignature{Params: []byte{F64}, Results: []byte{I64}})
-		case "runtime.cmpbody":
-			typ = lookupType(&WasmSignature{Params: []byte{I64, I64, I64, I64}, Results: []byte{I64}})
-		case "runtime.memeqbody":
-			typ = lookupType(&WasmSignature{Params: []byte{I64, I64, I64}, Results: []byte{I64}})
-		case "runtime.memcmp":
-			typ = lookupType(&WasmSignature{Params: []byte{I32, I32, I32}, Results: []byte{I32}})
-		case "runtime.memchr":
-			typ = lookupType(&WasmSignature{Params: []byte{I32, I32, I32}, Results: []byte{I32}})
+		if sig, ok := wasmSignatures[fn.Name]; ok {
+			typ = lookupType(sig)
 		}
 
 		name := nameRegexp.ReplaceAllString(fn.Name, "_")
@@ -374,19 +372,17 @@ func dataSec(ctxt *ld.Link) []byte {
 	writeUleb128(w, uint32(len(sections))) // number of data entries
 
 	for _, sec := range sections {
-		mainOut := ctxt.Out
-		var buf bytes.Buffer
-		ctxt.Out = ld.NewOutBuf(bufio.NewWriter(&buf))
-		ld.Datblk(ctxt, int64(sec.Vaddr), int64(sec.Length))
-		ctxt.Out.Flush()
-		ctxt.Out = mainOut
-
 		writeUleb128(w, 0) // memidx
 		w.WriteByte(0x41)  // i32.const
 		writeSleb128(w, int32(sec.Vaddr))
 		w.WriteByte(0x0b) // end
 		writeUleb128(w, uint32(sec.Length))
-		w.Write(buf.Bytes())
+
+		mainOut := ctxt.Out
+		ctxt.Out = ld.NewOutBuf(bufio.NewWriter(w))
+		ld.Datblk(ctxt, int64(sec.Vaddr), int64(sec.Length))
+		ctxt.Out.Flush()
+		ctxt.Out = mainOut
 	}
 
 	return w.Bytes()

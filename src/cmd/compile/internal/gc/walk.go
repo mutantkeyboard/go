@@ -242,9 +242,18 @@ func walkstmt(n *Node) *Node {
 
 	case ODEFER:
 		Curfn.Func.SetHasDefer(true)
+		fallthrough
+	case OPROC:
 		switch n.Left.Op {
 		case OPRINT, OPRINTN:
-			n.Left = walkprintfunc(n.Left, &n.Ninit)
+			n.Left = wrapCall(n.Left, &n.Ninit)
+
+		case ODELETE:
+			if mapfast(n.Left.List.First().Type) == mapslow {
+				n.Left = wrapCall(n.Left, &n.Ninit)
+			} else {
+				n.Left = walkexpr(n.Left, &n.Ninit)
+			}
 
 		case OCOPY:
 			n.Left = copyany(n.Left, &n.Ninit, true)
@@ -272,21 +281,6 @@ func walkstmt(n *Node) *Node {
 		n.Left = walkexpr(n.Left, &n.Ninit)
 		walkstmtlist(n.Nbody.Slice())
 		walkstmtlist(n.Rlist.Slice())
-
-	case OPROC:
-		switch n.Left.Op {
-		case OPRINT, OPRINTN:
-			n.Left = walkprintfunc(n.Left, &n.Ninit)
-
-		case OCOPY:
-			n.Left = copyany(n.Left, &n.Ninit, true)
-
-		default:
-			n.Left = walkexpr(n.Left, &n.Ninit)
-		}
-
-		// make room for size & fn arguments.
-		adjustargs(n, 2*Widthptr)
 
 	case ORETURN:
 		walkexprlist(n.List.Slice(), &n.Ninit)
@@ -480,6 +474,10 @@ func walkexpr(n *Node, init *Nodes) *Node {
 
 	if n.Typecheck() != 1 {
 		Fatalf("missed typecheck: %+v", n)
+	}
+
+	if n.Type.IsUntyped() {
+		Fatalf("expression has untyped type: %+v", n)
 	}
 
 	if n.Op == ONAME && n.Class() == PAUTOHEAP {
@@ -804,7 +802,7 @@ opswitch:
 		//   a = *var
 		a := n.List.First()
 
-		if w := t.Val().Width; w <= 1024 { // 1024 must match ../../../../runtime/hashmap.go:maxZero
+		if w := t.Val().Width; w <= 1024 { // 1024 must match ../../../../runtime/map.go:maxZero
 			fn := mapfn(mapaccess2[fast], t)
 			r = mkcall1(fn, fn.Type.Results(), init, typename(t), r.Left, key)
 		} else {
@@ -1178,7 +1176,7 @@ opswitch:
 				key = nod(OADDR, key, nil)
 			}
 
-			if w := t.Val().Width; w <= 1024 { // 1024 must match ../../../../runtime/hashmap.go:maxZero
+			if w := t.Val().Width; w <= 1024 { // 1024 must match ../../../../runtime/map.go:maxZero
 				n = mkcall1(mapfn(mapaccess1[fast], t), types.NewPtr(t.Val()), init, typename(t), map_, key)
 			} else {
 				z := zeroaddr(w)
@@ -1240,10 +1238,7 @@ opswitch:
 		if (Op(n.Etype) == OEQ || Op(n.Etype) == ONE) && Isconst(n.Right, CTSTR) && n.Left.Op == OADDSTR && n.Left.List.Len() == 2 && Isconst(n.Left.List.Second(), CTSTR) && strlit(n.Right) == strlit(n.Left.List.Second()) {
 			// TODO(marvin): Fix Node.EType type union.
 			r := nod(Op(n.Etype), nod(OLEN, n.Left.List.First(), nil), nodintconst(0))
-			r = typecheck(r, Erv)
-			r = walkexpr(r, init)
-			r.Type = n.Type
-			n = r
+			n = finishcompare(n, r, init)
 			break
 		}
 
@@ -1343,10 +1338,7 @@ opswitch:
 					remains -= step
 					i += step
 				}
-				r = typecheck(r, Erv)
-				r = walkexpr(r, init)
-				r.Type = n.Type
-				n = r
+				n = finishcompare(n, r, init)
 				break
 			}
 		}
@@ -1380,9 +1372,6 @@ opswitch:
 				r = nod(ONOT, r, nil)
 				r = nod(OOROR, nod(ONE, llen, rlen), r)
 			}
-
-			r = typecheck(r, Erv)
-			r = walkexpr(r, nil)
 		} else {
 			// sys_cmpstring(s1, s2) :: 0
 			r = mkcall("cmpstring", types.Types[TINT], init, conv(n.Left, types.Types[TSTRING]), conv(n.Right, types.Types[TSTRING]))
@@ -1390,12 +1379,7 @@ opswitch:
 			r = nod(Op(n.Etype), r, nodintconst(0))
 		}
 
-		r = typecheck(r, Erv)
-		if !n.Type.IsBoolean() {
-			Fatalf("cmp %v", n.Type)
-		}
-		r.Type = n.Type
-		n = r
+		n = finishcompare(n, r, init)
 
 	case OADDSTR:
 		n = addstr(n, init)
@@ -1665,7 +1649,7 @@ opswitch:
 			a = nod(OADDR, temp(t), nil)
 		}
 
-		n = mkcall("stringtoslicerune", n.Type, init, a, n.Left)
+		n = mkcall("stringtoslicerune", n.Type, init, a, conv(n.Left, types.Types[TSTRING]))
 
 		// ifaceeq(i1 any-1, i2 any-2) (ret bool);
 	case OCMPIFACE:
@@ -1700,10 +1684,7 @@ opswitch:
 		} else {
 			cmp = nod(OOROR, nod(ONE, lt, rt), nod(ONOT, call, nil))
 		}
-		cmp = typecheck(cmp, Erv)
-		cmp = walkexpr(cmp, init)
-		cmp.Type = n.Type
-		n = cmp
+		n = finishcompare(n, cmp, init)
 
 	case OARRAYLIT, OSLICELIT, OMAPLIT, OSTRUCTLIT, OPTRLIT:
 		if isStaticCompositeLiteral(n) && !canSSAType(n.Type) {
@@ -2824,7 +2805,7 @@ var mapassign = mkmapnames("mapassign", "ptr")
 var mapdelete = mkmapnames("mapdelete", "")
 
 func mapfast(t *types.Type) int {
-	// Check ../../runtime/hashmap.go:maxValueSize before changing.
+	// Check ../../runtime/map.go:maxValueSize before changing.
 	if t.Val().Width > 128 {
 		return mapslow
 	}
@@ -3138,7 +3119,7 @@ func walkappend(n *Node, init *Nodes, dst *Node) *Node {
 // init {
 //   n := len(a)
 //   if n > len(b) { n = len(b) }
-//   memmove(a.ptr, b.ptr, n*sizeof(elem(a)))
+//   if a.ptr != b.ptr { memmove(a.ptr, b.ptr, n*sizeof(elem(a))) }
 // }
 // n;
 //
@@ -3186,14 +3167,19 @@ func copyany(n *Node, init *Nodes, runtimecall bool) *Node {
 	nif.Nbody.Append(nod(OAS, nlen, nod(OLEN, nr, nil)))
 	l = append(l, nif)
 
-	// Call memmove.
-	fn := syslook("memmove")
+	// if to.ptr != frm.ptr { memmove( ... ) }
+	ne := nod(OIF, nod(ONE, nto, nfrm), nil)
+	ne.SetLikely(true)
+	l = append(l, ne)
 
+	fn := syslook("memmove")
 	fn = substArgTypes(fn, nl.Type.Elem(), nl.Type.Elem())
 	nwid := temp(types.Types[TUINTPTR])
-	l = append(l, nod(OAS, nwid, conv(nlen, types.Types[TUINTPTR])))
+	setwid := nod(OAS, nwid, conv(nlen, types.Types[TUINTPTR]))
+	ne.Nbody.Append(setwid)
 	nwid = nod(OMUL, nwid, nodintconst(nl.Type.Elem().Width))
-	l = append(l, mkcall1(fn, nil, init, nto, nfrm, nwid))
+	call := mkcall1(fn, nil, init, nto, nfrm, nwid)
+	ne.Nbody.Append(call)
 
 	typecheckslice(l, Etop)
 	walkstmtlist(l)
@@ -3215,12 +3201,12 @@ func eqfor(t *types.Type) (n *Node, needsize bool) {
 		sym := typesymprefix(".eq", t)
 		n := newname(sym)
 		n.SetClass(PFUNC)
-		ntype := nod(OTFUNC, nil, nil)
-		ntype.List.Append(anonfield(types.NewPtr(t)))
-		ntype.List.Append(anonfield(types.NewPtr(t)))
-		ntype.Rlist.Append(anonfield(types.Types[TBOOL]))
-		ntype = typecheck(ntype, Etype)
-		n.Type = ntype.Type
+		n.Type = functype(nil, []*Node{
+			anonfield(types.NewPtr(t)),
+			anonfield(types.NewPtr(t)),
+		}, []*Node{
+			anonfield(types.Types[TBOOL]),
+		})
 		return n, false
 	}
 	Fatalf("eqfor %v", t)
@@ -3409,26 +3395,31 @@ func walkcompare(n *Node, init *Nodes) *Node {
 			}
 			if step == 1 {
 				compare(
-					nod(OINDEX, cmpl, nodintconst(int64(i))),
-					nod(OINDEX, cmpr, nodintconst(int64(i))),
+					nod(OINDEX, cmpl, nodintconst(i)),
+					nod(OINDEX, cmpr, nodintconst(i)),
 				)
 				i++
 				remains -= t.Elem().Width
 			} else {
-				cmplw := nod(OINDEX, cmpl, nodintconst(int64(i)))
-				cmplw = conv(cmplw, convType)
-				cmprw := nod(OINDEX, cmpr, nodintconst(int64(i)))
+				elemType := t.Elem().ToUnsigned()
+				cmplw := nod(OINDEX, cmpl, nodintconst(i))
+				cmplw = conv(cmplw, elemType) // convert to unsigned
+				cmplw = conv(cmplw, convType) // widen
+				cmprw := nod(OINDEX, cmpr, nodintconst(i))
+				cmprw = conv(cmprw, elemType)
 				cmprw = conv(cmprw, convType)
 				// For code like this:  uint32(s[0]) | uint32(s[1])<<8 | uint32(s[2])<<16 ...
 				// ssa will generate a single large load.
 				for offset := int64(1); offset < step; offset++ {
-					lb := nod(OINDEX, cmpl, nodintconst(int64(i+offset)))
+					lb := nod(OINDEX, cmpl, nodintconst(i+offset))
+					lb = conv(lb, elemType)
 					lb = conv(lb, convType)
-					lb = nod(OLSH, lb, nodintconst(int64(8*t.Elem().Width*offset)))
+					lb = nod(OLSH, lb, nodintconst(8*t.Elem().Width*offset))
 					cmplw = nod(OOR, cmplw, lb)
-					rb := nod(OINDEX, cmpr, nodintconst(int64(i+offset)))
+					rb := nod(OINDEX, cmpr, nodintconst(i+offset))
+					rb = conv(rb, elemType)
 					rb = conv(rb, convType)
-					rb = nod(OLSH, rb, nodintconst(int64(8*t.Elem().Width*offset)))
+					rb = nod(OLSH, rb, nodintconst(8*t.Elem().Width*offset))
 					cmprw = nod(OOR, cmprw, rb)
 				}
 				compare(cmplw, cmprw)
@@ -3447,18 +3438,10 @@ func walkcompare(n *Node, init *Nodes) *Node {
 // The result of finishcompare MUST be assigned back to n, e.g.
 // 	n.Left = finishcompare(n.Left, x, r, init)
 func finishcompare(n, r *Node, init *Nodes) *Node {
-	// Use nn here to avoid passing r to typecheck.
-	nn := r
-	nn = typecheck(nn, Erv)
-	nn = walkexpr(nn, init)
-	r = nn
-	if r.Type != n.Type {
-		r = nod(OCONVNOP, r, nil)
-		r.Type = n.Type
-		r.SetTypecheck(1)
-		nn = r
-	}
-	return nn
+	r = typecheck(r, Erv)
+	r = conv(r, n.Type)
+	r = walkexpr(r, init)
+	return r
 }
 
 // isIntOrdering reports whether n is a <, ≤, >, or ≥ ordering between integers.
@@ -3848,45 +3831,40 @@ func candiscard(n *Node) bool {
 	return true
 }
 
-// rewrite
-//	print(x, y, z)
+// Rewrite
+//	go builtin(x, y, z)
 // into
-//	func(a1, a2, a3) {
-//		print(a1, a2, a3)
+//	go func(a1, a2, a3) {
+//		builtin(a1, a2, a3)
 //	}(x, y, z)
-// and same for println.
+// for print, println, and delete.
 
-var walkprintfunc_prgen int
+var wrapCall_prgen int
 
-// The result of walkprintfunc MUST be assigned back to n, e.g.
-// 	n.Left = walkprintfunc(n.Left, init)
-func walkprintfunc(n *Node, init *Nodes) *Node {
+// The result of wrapCall MUST be assigned back to n, e.g.
+// 	n.Left = wrapCall(n.Left, init)
+func wrapCall(n *Node, init *Nodes) *Node {
 	if n.Ninit.Len() != 0 {
 		walkstmtlist(n.Ninit.Slice())
 		init.AppendNodes(&n.Ninit)
 	}
 
 	t := nod(OTFUNC, nil, nil)
-	var printargs []*Node
-	for i, n1 := range n.List.Slice() {
+	var args []*Node
+	for i, arg := range n.List.Slice() {
 		buf := fmt.Sprintf("a%d", i)
-		a := namedfield(buf, n1.Type)
+		a := namedfield(buf, arg.Type)
 		t.List.Append(a)
-		printargs = append(printargs, a.Left)
+		args = append(args, a.Left)
 	}
 
-	oldfn := Curfn
-	Curfn = nil
-
-	walkprintfunc_prgen++
-	sym := lookupN("print·%d", walkprintfunc_prgen)
+	wrapCall_prgen++
+	sym := lookupN("wrap·", wrapCall_prgen)
 	fn := dclfunc(sym, t)
 
 	a := nod(n.Op, nil, nil)
-	a.List.Set(printargs)
+	a.List.Set(args)
 	a = typecheck(a, Etop)
-	a = walkstmt(a)
-
 	fn.Nbody.Set1(a)
 
 	funcbody()
@@ -3894,7 +3872,6 @@ func walkprintfunc(n *Node, init *Nodes) *Node {
 	fn = typecheck(fn, Etop)
 	typecheckslice(fn.Nbody.Slice(), Etop)
 	xtop = append(xtop, fn)
-	Curfn = oldfn
 
 	a = nod(OCALL, nil, nil)
 	a.Left = fn.Func.Nname

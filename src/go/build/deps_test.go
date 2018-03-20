@@ -36,7 +36,7 @@ var pkgDeps = map[string][]string{
 	// L0 is the lowest level, core, nearly unavoidable packages.
 	"errors":                  {},
 	"io":                      {"errors", "sync", "sync/atomic"},
-	"runtime":                 {"unsafe", "runtime/internal/atomic", "runtime/internal/sys"},
+	"runtime":                 {"unsafe", "runtime/internal/atomic", "runtime/internal/sys", "internal/cpu", "internal/bytealg"},
 	"runtime/internal/sys":    {},
 	"runtime/internal/atomic": {"unsafe", "runtime/internal/sys"},
 	"runtime/js":              {"unsafe"},
@@ -44,7 +44,8 @@ var pkgDeps = map[string][]string{
 	"sync":                    {"internal/race", "runtime", "sync/atomic", "unsafe"},
 	"sync/atomic":             {"unsafe"},
 	"unsafe":                  {},
-	"internal/cpu":            {"runtime"},
+	"internal/cpu":            {},
+	"internal/bytealg":        {"unsafe", "internal/cpu"},
 
 	"L0": {
 		"errors",
@@ -55,6 +56,7 @@ var pkgDeps = map[string][]string{
 		"sync/atomic",
 		"unsafe",
 		"internal/cpu",
+		"internal/bytealg",
 	},
 
 	// L1 adds simple functions and strings processing,
@@ -182,7 +184,7 @@ var pkgDeps = map[string][]string{
 	"regexp/syntax":  {"L2"},
 	"runtime/debug":  {"L2", "fmt", "io/ioutil", "os", "time"},
 	"runtime/pprof":  {"L2", "compress/gzip", "context", "encoding/binary", "fmt", "io/ioutil", "os", "text/tabwriter", "time"},
-	"runtime/trace":  {"L0"},
+	"runtime/trace":  {"L0", "context", "fmt"},
 	"text/tabwriter": {"L2"},
 
 	"testing":          {"L2", "flag", "fmt", "internal/race", "os", "runtime/debug", "runtime/pprof", "runtime/trace", "time"},
@@ -224,7 +226,7 @@ var pkgDeps = map[string][]string{
 	"go/importer":               {"L4", "go/build", "go/internal/gccgoimporter", "go/internal/gcimporter", "go/internal/srcimporter", "go/token", "go/types"},
 	"go/internal/gcimporter":    {"L4", "OS", "go/build", "go/constant", "go/token", "go/types", "text/scanner"},
 	"go/internal/gccgoimporter": {"L4", "OS", "debug/elf", "go/constant", "go/token", "go/types", "text/scanner"},
-	"go/internal/srcimporter":   {"L4", "fmt", "go/ast", "go/build", "go/parser", "go/token", "go/types", "path/filepath"},
+	"go/internal/srcimporter":   {"L4", "OS", "fmt", "go/ast", "go/build", "go/parser", "go/token", "go/types", "path/filepath"},
 	"go/types":                  {"L4", "GOPARSER", "container/heap", "go/constant"},
 
 	// One of a kind.
@@ -299,10 +301,10 @@ var pkgDeps = map[string][]string{
 	"runtime/msan": {"C"},
 
 	// Plan 9 alone needs io/ioutil and os.
-	"os/user": {"L4", "CGO", "io/ioutil", "os", "syscall"},
+	"os/user": {"L4", "CGO", "io/ioutil", "os", "syscall", "internal/syscall/windows", "internal/syscall/windows/registry"},
 
 	// Internal package used only for testing.
-	"os/signal/internal/pty": {"CGO", "fmt", "os"},
+	"os/signal/internal/pty": {"CGO", "fmt", "os", "syscall"},
 
 	// Basic networking.
 	// Because net must be used by any package that wants to

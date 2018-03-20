@@ -224,38 +224,34 @@ var allAsmTests = []*asmTests{
 	{
 		arch:    "amd64",
 		os:      "linux",
-		imports: []string{"encoding/binary", "math", "math/bits", "unsafe", "runtime"},
+		imports: []string{"unsafe", "runtime"},
 		tests:   linuxAMD64Tests,
 	},
 	{
-		arch:    "386",
-		os:      "linux",
-		imports: []string{"encoding/binary"},
-		tests:   linux386Tests,
+		arch:  "386",
+		os:    "linux",
+		tests: linux386Tests,
 	},
 	{
-		arch:    "s390x",
-		os:      "linux",
-		imports: []string{"encoding/binary", "math", "math/bits"},
-		tests:   linuxS390XTests,
+		arch:  "s390x",
+		os:    "linux",
+		tests: linuxS390XTests,
 	},
 	{
 		arch:    "arm",
 		os:      "linux",
-		imports: []string{"math/bits", "runtime"},
+		imports: []string{"runtime"},
 		tests:   linuxARMTests,
 	},
 	{
-		arch:    "arm64",
-		os:      "linux",
-		imports: []string{"math/bits"},
-		tests:   linuxARM64Tests,
+		arch:  "arm64",
+		os:    "linux",
+		tests: linuxARM64Tests,
 	},
 	{
-		arch:    "mips",
-		os:      "linux",
-		imports: []string{"math/bits"},
-		tests:   linuxMIPSTests,
+		arch:  "mips",
+		os:    "linux",
+		tests: linuxMIPSTests,
 	},
 	{
 		arch:  "mips64",
@@ -265,7 +261,7 @@ var allAsmTests = []*asmTests{
 	{
 		arch:    "ppc64le",
 		os:      "linux",
-		imports: []string{"encoding/binary", "math", "math/bits"},
+		imports: []string{"math/bits"},
 		tests:   linuxPPC64LETests,
 	},
 	{
@@ -276,26 +272,6 @@ var allAsmTests = []*asmTests{
 }
 
 var linuxAMD64Tests = []*asmTest{
-	// multiplication by powers of two
-	{
-		fn: `
-		func $(n int) int {
-			return n * 64
-		}
-		`,
-		pos: []string{"\tSHLQ\t\\$6,"},
-		neg: []string{"IMULQ"},
-	},
-	{
-		fn: `
-		func $(n int) int {
-			return -128*n
-		}
-		`,
-		pos: []string{"SHLQ"},
-		neg: []string{"IMULQ"},
-	},
-
 	{
 		fn: `
 		func $(x int) int {
@@ -303,135 +279,6 @@ var linuxAMD64Tests = []*asmTest{
 		}
 		`,
 		pos: []string{"\tSHLQ\t\\$5,", "\tLEAQ\t\\(.*\\)\\(.*\\*2\\),"},
-	},
-	// Load-combining tests.
-	{
-		fn: `
-		func f2(b []byte) uint64 {
-			return binary.LittleEndian.Uint64(b)
-		}
-		`,
-		pos: []string{"\tMOVQ\t\\(.*\\),"},
-	},
-	{
-		fn: `
-		func f3(b []byte, i int) uint64 {
-			return binary.LittleEndian.Uint64(b[i:])
-		}
-		`,
-		pos: []string{"\tMOVQ\t\\(.*\\)\\(.*\\*1\\),"},
-	},
-	{
-		fn: `
-		func f4(b []byte) uint32 {
-			return binary.LittleEndian.Uint32(b)
-		}
-		`,
-		pos: []string{"\tMOVL\t\\(.*\\),"},
-	},
-	{
-		fn: `
-		func f5(b []byte, i int) uint32 {
-			return binary.LittleEndian.Uint32(b[i:])
-		}
-		`,
-		pos: []string{"\tMOVL\t\\(.*\\)\\(.*\\*1\\),"},
-	},
-	{
-		fn: `
-		func f6(b []byte) uint64 {
-			return binary.BigEndian.Uint64(b)
-		}
-		`,
-		pos: []string{"\tBSWAPQ\t"},
-	},
-	{
-		fn: `
-		func f7(b []byte, i int) uint64 {
-			return binary.BigEndian.Uint64(b[i:])
-		}
-		`,
-		pos: []string{"\tBSWAPQ\t"},
-	},
-	{
-		fn: `
-		func f8(b []byte, v uint64) {
-			binary.BigEndian.PutUint64(b, v)
-		}
-		`,
-		pos: []string{"\tBSWAPQ\t"},
-	},
-	{
-		fn: `
-		func f9(b []byte, i int, v uint64) {
-			binary.BigEndian.PutUint64(b[i:], v)
-		}
-		`,
-		pos: []string{"\tBSWAPQ\t"},
-	},
-	{
-		fn: `
-		func f10(b []byte) uint32 {
-			return binary.BigEndian.Uint32(b)
-		}
-		`,
-		pos: []string{"\tBSWAPL\t"},
-	},
-	{
-		fn: `
-		func f11(b []byte, i int) uint32 {
-			return binary.BigEndian.Uint32(b[i:])
-		}
-		`,
-		pos: []string{"\tBSWAPL\t"},
-	},
-	{
-		fn: `
-		func f12(b []byte, v uint32) {
-			binary.BigEndian.PutUint32(b, v)
-		}
-		`,
-		pos: []string{"\tBSWAPL\t"},
-	},
-	{
-		fn: `
-		func f13(b []byte, i int, v uint32) {
-			binary.BigEndian.PutUint32(b[i:], v)
-		}
-		`,
-		pos: []string{"\tBSWAPL\t"},
-	},
-	{
-		fn: `
-		func f14(b []byte) uint16 {
-			return binary.BigEndian.Uint16(b)
-		}
-		`,
-		pos: []string{"\tROLW\t\\$8,"},
-	},
-	{
-		fn: `
-		func f15(b []byte, i int) uint16 {
-			return binary.BigEndian.Uint16(b[i:])
-		}
-		`,
-		pos: []string{"\tROLW\t\\$8,"},
-	},
-	{
-		fn: `
-		func f16(b []byte, v uint16) {
-			binary.BigEndian.PutUint16(b, v)
-		}
-		`,
-		pos: []string{"\tROLW\t\\$8,"},
-	},
-	{
-		fn: `
-		func f17(b []byte, i int, v uint16) {
-			binary.BigEndian.PutUint16(b[i:], v)
-		}
-		`,
-		pos: []string{"\tROLW\t\\$8,"},
 	},
 	// Structure zeroing.  See issue #18370.
 	{
@@ -468,7 +315,7 @@ var linuxAMD64Tests = []*asmTest{
 			*t = T2{}
 		}
 		`,
-		pos: []string{"\tXORPS\tX., X", "\tMOVUPS\tX., \\(.*\\)", "\tMOVQ\t\\$0, 16\\(.*\\)", "\tCALL\truntime\\.(writebarrierptr|gcWriteBarrier)\\(SB\\)"},
+		pos: []string{"\tXORPS\tX., X", "\tMOVUPS\tX., \\(.*\\)", "\tMOVQ\t\\$0, 16\\(.*\\)", "\tCALL\truntime\\.gcWriteBarrier\\(SB\\)"},
 	},
 	// Rotate tests
 	{
@@ -653,175 +500,6 @@ var linuxAMD64Tests = []*asmTest{
 		`,
 		pos: []string{"\tBTQ\t\\$60"},
 	},
-	// Intrinsic tests for math/bits
-	{
-		fn: `
-		func f41(a uint64) int {
-			return bits.TrailingZeros64(a)
-		}
-		`,
-		pos: []string{"\tBSFQ\t", "\tMOVL\t\\$64,", "\tCMOVQEQ\t"},
-	},
-	{
-		fn: `
-		func f42(a uint32) int {
-			return bits.TrailingZeros32(a)
-		}
-		`,
-		pos: []string{"\tBSFQ\t", "\tORQ\t[^$]", "\tMOVQ\t\\$4294967296,"},
-	},
-	{
-		fn: `
-		func f43(a uint16) int {
-			return bits.TrailingZeros16(a)
-		}
-		`,
-		pos: []string{"\tBSFQ\t", "\tORQ\t\\$65536,"},
-	},
-	{
-		fn: `
-		func f44(a uint8) int {
-			return bits.TrailingZeros8(a)
-		}
-		`,
-		pos: []string{"\tBSFQ\t", "\tORQ\t\\$256,"},
-	},
-	{
-		fn: `
-		func f45(a uint64) uint64 {
-			return bits.ReverseBytes64(a)
-		}
-		`,
-		pos: []string{"\tBSWAPQ\t"},
-	},
-	{
-		fn: `
-		func f46(a uint32) uint32 {
-			return bits.ReverseBytes32(a)
-		}
-		`,
-		pos: []string{"\tBSWAPL\t"},
-	},
-	{
-		fn: `
-		func f47(a uint16) uint16 {
-			return bits.ReverseBytes16(a)
-		}
-		`,
-		pos: []string{"\tROLW\t\\$8,"},
-	},
-	{
-		fn: `
-		func f48(a uint64) int {
-			return bits.Len64(a)
-		}
-		`,
-		pos: []string{"\tBSRQ\t"},
-	},
-	{
-		fn: `
-		func f49(a uint32) int {
-			return bits.Len32(a)
-		}
-		`,
-		pos: []string{"\tBSRQ\t"},
-	},
-	{
-		fn: `
-		func f50(a uint16) int {
-			return bits.Len16(a)
-		}
-		`,
-		pos: []string{"\tBSRQ\t"},
-	},
-	/* see ssa.go
-	{
-		fn:`
-		func f51(a uint8) int {
-			return bits.Len8(a)
-		}
-		`,
-		pos:[]string{"\tBSRQ\t"},
-	},
-	*/
-	{
-		fn: `
-		func f52(a uint) int {
-			return bits.Len(a)
-		}
-		`,
-		pos: []string{"\tBSRQ\t"},
-	},
-	{
-		fn: `
-		func f53(a uint64) int {
-			return bits.LeadingZeros64(a)
-		}
-		`,
-		pos: []string{"\tBSRQ\t"},
-	},
-	{
-		fn: `
-		func f54(a uint32) int {
-			return bits.LeadingZeros32(a)
-		}
-		`,
-		pos: []string{"\tBSRQ\t"},
-	},
-	{
-		fn: `
-		func f55(a uint16) int {
-			return bits.LeadingZeros16(a)
-		}
-		`,
-		pos: []string{"\tBSRQ\t"},
-	},
-	/* see ssa.go
-	{
-		fn:`
-		func f56(a uint8) int {
-			return bits.LeadingZeros8(a)
-		}
-		`,
-		pos:[]string{"\tBSRQ\t"},
-	},
-	*/
-	{
-		fn: `
-		func f57(a uint) int {
-			return bits.LeadingZeros(a)
-		}
-		`,
-		pos: []string{"\tBSRQ\t"},
-	},
-	{
-		fn: `
-		func pop1(x uint64) int {
-			return bits.OnesCount64(x)
-		}`,
-		pos: []string{"\tPOPCNTQ\t", "support_popcnt"},
-	},
-	{
-		fn: `
-		func pop2(x uint32) int {
-			return bits.OnesCount32(x)
-		}`,
-		pos: []string{"\tPOPCNTL\t", "support_popcnt"},
-	},
-	{
-		fn: `
-		func pop3(x uint16) int {
-			return bits.OnesCount16(x)
-		}`,
-		pos: []string{"\tPOPCNTL\t", "support_popcnt"},
-	},
-	{
-		fn: `
-		func pop4(x uint) int {
-			return bits.OnesCount(x)
-		}`,
-		pos: []string{"\tPOPCNTQ\t", "support_popcnt"},
-	},
 	// multiplication merging tests
 	{
 		fn: `
@@ -914,14 +592,14 @@ var linuxAMD64Tests = []*asmTest{
 		func f65(a string) bool {
 		    return a == "xx"
 		}`,
-		pos: []string{"\tCMPW\t[A-Z]"},
+		pos: []string{"\tCMPW\t\\(.*\\), [$]"},
 	},
 	{
 		fn: `
 		func f66(a string) bool {
 		    return a == "xxxx"
 		}`,
-		pos: []string{"\tCMPL\t[A-Z]"},
+		pos: []string{"\tCMPL\t\\(.*\\), [$]"},
 	},
 	{
 		fn: `
@@ -993,28 +671,51 @@ var linuxAMD64Tests = []*asmTest{
 		func f68(a,b [2]byte) bool {
 		    return a == b
 		}`,
-		pos: []string{"\tCMPW\t[A-Z]"},
+		pos: []string{"\tCMPW\t\"\"[.+_a-z0-9]+\\(SP\\), [A-Z]"},
 	},
 	{
 		fn: `
 		func f69(a,b [3]uint16) bool {
 		    return a == b
 		}`,
-		pos: []string{"\tCMPL\t[A-Z]"},
+		pos: []string{
+			"\tCMPL\t\"\"[.+_a-z0-9]+\\(SP\\), [A-Z]",
+			"\tCMPW\t\"\"[.+_a-z0-9]+\\(SP\\), [A-Z]",
+		},
+	},
+	{
+		fn: `
+		func $(a,b [3]int16) bool {
+		    return a == b
+		}`,
+		pos: []string{
+			"\tCMPL\t\"\"[.+_a-z0-9]+\\(SP\\), [A-Z]",
+			"\tCMPW\t\"\"[.+_a-z0-9]+\\(SP\\), [A-Z]",
+		},
+	},
+	{
+		fn: `
+		func $(a,b [12]int8) bool {
+		    return a == b
+		}`,
+		pos: []string{
+			"\tCMPQ\t\"\"[.+_a-z0-9]+\\(SP\\), [A-Z]",
+			"\tCMPL\t\"\"[.+_a-z0-9]+\\(SP\\), [A-Z]",
+		},
 	},
 	{
 		fn: `
 		func f70(a,b [15]byte) bool {
 		    return a == b
 		}`,
-		pos: []string{"\tCMPQ\t[A-Z]"},
+		pos: []string{"\tCMPQ\t\"\"[.+_a-z0-9]+\\(SP\\), [A-Z]"},
 	},
 	{
 		fn: `
 		func f71(a,b unsafe.Pointer) bool { // This was a TODO in mapaccess1_faststr
 		    return *((*[4]byte)(a)) != *((*[4]byte)(b))
 		}`,
-		pos: []string{"\tCMPL\t[A-Z]"},
+		pos: []string{"\tCMPL\t\\(.*\\), [A-Z]"},
 	},
 	{
 		// make sure assembly output has matching offset and base register.
@@ -1072,64 +773,14 @@ var linuxAMD64Tests = []*asmTest{
 		`,
 		pos: []string{"TEXT\t.*, [$]0-8"},
 	},
-	// math.Abs using integer registers
-	{
-		fn: `
-		func $(x float64) float64 {
-			return math.Abs(x)
-		}
-		`,
-		pos: []string{"\tSHLQ\t[$]1,", "\tSHRQ\t[$]1,"},
-	},
-	// math.Copysign using integer registers
-	{
-		fn: `
-		func $(x, y float64) float64 {
-			return math.Copysign(x, y)
-		}
-		`,
-		pos: []string{"\tSHLQ\t[$]1,", "\tSHRQ\t[$]1,", "\tSHRQ\t[$]63,", "\tSHLQ\t[$]63,", "\tORQ\t"},
-	},
 	// int <-> fp moves
-	{
-		fn: `
-		func $(x float64) uint64 {
-			return math.Float64bits(x+1) + 1
-		}
-		`,
-		pos: []string{"\tMOVQ\tX.*, [^X].*"},
-	},
-	{
-		fn: `
-		func $(x float32) uint32 {
-			return math.Float32bits(x+1) + 1
-		}
-		`,
-		pos: []string{"\tMOVL\tX.*, [^X].*"},
-	},
-	{
-		fn: `
-		func $(x uint64) float64 {
-			return math.Float64frombits(x+1) + 1
-		}
-		`,
-		pos: []string{"\tMOVQ\t[^X].*, X.*"},
-	},
-	{
-		fn: `
-		func $(x uint32) float32 {
-			return math.Float32frombits(x+1) + 1
-		}
-		`,
-		pos: []string{"\tMOVL\t[^X].*, X.*"},
-	},
 	{
 		fn: `
 		func $(x uint32) bool {
 			return x > 4
 		}
 		`,
-		pos: []string{"\tSETHI\t\\("},
+		pos: []string{"\tSETHI\t.*\\(SP\\)"},
 	},
 	// Check that len() and cap() div by a constant power of two
 	// are compiled into SHRQ.
@@ -1213,577 +864,49 @@ var linuxAMD64Tests = []*asmTest{
 		`,
 		neg: []string{"memmove"},
 	},
-	// Nil checks before calling interface methods
 	{
 		fn: `
-		type I interface {
-			foo000()
-			foo001()
-			foo002()
-			foo003()
-			foo004()
-			foo005()
-			foo006()
-			foo007()
-			foo008()
-			foo009()
-			foo010()
-			foo011()
-			foo012()
-			foo013()
-			foo014()
-			foo015()
-			foo016()
-			foo017()
-			foo018()
-			foo019()
-			foo020()
-			foo021()
-			foo022()
-			foo023()
-			foo024()
-			foo025()
-			foo026()
-			foo027()
-			foo028()
-			foo029()
-			foo030()
-			foo031()
-			foo032()
-			foo033()
-			foo034()
-			foo035()
-			foo036()
-			foo037()
-			foo038()
-			foo039()
-			foo040()
-			foo041()
-			foo042()
-			foo043()
-			foo044()
-			foo045()
-			foo046()
-			foo047()
-			foo048()
-			foo049()
-			foo050()
-			foo051()
-			foo052()
-			foo053()
-			foo054()
-			foo055()
-			foo056()
-			foo057()
-			foo058()
-			foo059()
-			foo060()
-			foo061()
-			foo062()
-			foo063()
-			foo064()
-			foo065()
-			foo066()
-			foo067()
-			foo068()
-			foo069()
-			foo070()
-			foo071()
-			foo072()
-			foo073()
-			foo074()
-			foo075()
-			foo076()
-			foo077()
-			foo078()
-			foo079()
-			foo080()
-			foo081()
-			foo082()
-			foo083()
-			foo084()
-			foo085()
-			foo086()
-			foo087()
-			foo088()
-			foo089()
-			foo090()
-			foo091()
-			foo092()
-			foo093()
-			foo094()
-			foo095()
-			foo096()
-			foo097()
-			foo098()
-			foo099()
-			foo100()
-			foo101()
-			foo102()
-			foo103()
-			foo104()
-			foo105()
-			foo106()
-			foo107()
-			foo108()
-			foo109()
-			foo110()
-			foo111()
-			foo112()
-			foo113()
-			foo114()
-			foo115()
-			foo116()
-			foo117()
-			foo118()
-			foo119()
-			foo120()
-			foo121()
-			foo122()
-			foo123()
-			foo124()
-			foo125()
-			foo126()
-			foo127()
-			foo128()
-			foo129()
-			foo130()
-			foo131()
-			foo132()
-			foo133()
-			foo134()
-			foo135()
-			foo136()
-			foo137()
-			foo138()
-			foo139()
-			foo140()
-			foo141()
-			foo142()
-			foo143()
-			foo144()
-			foo145()
-			foo146()
-			foo147()
-			foo148()
-			foo149()
-			foo150()
-			foo151()
-			foo152()
-			foo153()
-			foo154()
-			foo155()
-			foo156()
-			foo157()
-			foo158()
-			foo159()
-			foo160()
-			foo161()
-			foo162()
-			foo163()
-			foo164()
-			foo165()
-			foo166()
-			foo167()
-			foo168()
-			foo169()
-			foo170()
-			foo171()
-			foo172()
-			foo173()
-			foo174()
-			foo175()
-			foo176()
-			foo177()
-			foo178()
-			foo179()
-			foo180()
-			foo181()
-			foo182()
-			foo183()
-			foo184()
-			foo185()
-			foo186()
-			foo187()
-			foo188()
-			foo189()
-			foo190()
-			foo191()
-			foo192()
-			foo193()
-			foo194()
-			foo195()
-			foo196()
-			foo197()
-			foo198()
-			foo199()
-			foo200()
-			foo201()
-			foo202()
-			foo203()
-			foo204()
-			foo205()
-			foo206()
-			foo207()
-			foo208()
-			foo209()
-			foo210()
-			foo211()
-			foo212()
-			foo213()
-			foo214()
-			foo215()
-			foo216()
-			foo217()
-			foo218()
-			foo219()
-			foo220()
-			foo221()
-			foo222()
-			foo223()
-			foo224()
-			foo225()
-			foo226()
-			foo227()
-			foo228()
-			foo229()
-			foo230()
-			foo231()
-			foo232()
-			foo233()
-			foo234()
-			foo235()
-			foo236()
-			foo237()
-			foo238()
-			foo239()
-			foo240()
-			foo241()
-			foo242()
-			foo243()
-			foo244()
-			foo245()
-			foo246()
-			foo247()
-			foo248()
-			foo249()
-			foo250()
-			foo251()
-			foo252()
-			foo253()
-			foo254()
-			foo255()
-			foo256()
-			foo257()
-			foo258()
-			foo259()
-			foo260()
-			foo261()
-			foo262()
-			foo263()
-			foo264()
-			foo265()
-			foo266()
-			foo267()
-			foo268()
-			foo269()
-			foo270()
-			foo271()
-			foo272()
-			foo273()
-			foo274()
-			foo275()
-			foo276()
-			foo277()
-			foo278()
-			foo279()
-			foo280()
-			foo281()
-			foo282()
-			foo283()
-			foo284()
-			foo285()
-			foo286()
-			foo287()
-			foo288()
-			foo289()
-			foo290()
-			foo291()
-			foo292()
-			foo293()
-			foo294()
-			foo295()
-			foo296()
-			foo297()
-			foo298()
-			foo299()
-			foo300()
-			foo301()
-			foo302()
-			foo303()
-			foo304()
-			foo305()
-			foo306()
-			foo307()
-			foo308()
-			foo309()
-			foo310()
-			foo311()
-			foo312()
-			foo313()
-			foo314()
-			foo315()
-			foo316()
-			foo317()
-			foo318()
-			foo319()
-			foo320()
-			foo321()
-			foo322()
-			foo323()
-			foo324()
-			foo325()
-			foo326()
-			foo327()
-			foo328()
-			foo329()
-			foo330()
-			foo331()
-			foo332()
-			foo333()
-			foo334()
-			foo335()
-			foo336()
-			foo337()
-			foo338()
-			foo339()
-			foo340()
-			foo341()
-			foo342()
-			foo343()
-			foo344()
-			foo345()
-			foo346()
-			foo347()
-			foo348()
-			foo349()
-			foo350()
-			foo351()
-			foo352()
-			foo353()
-			foo354()
-			foo355()
-			foo356()
-			foo357()
-			foo358()
-			foo359()
-			foo360()
-			foo361()
-			foo362()
-			foo363()
-			foo364()
-			foo365()
-			foo366()
-			foo367()
-			foo368()
-			foo369()
-			foo370()
-			foo371()
-			foo372()
-			foo373()
-			foo374()
-			foo375()
-			foo376()
-			foo377()
-			foo378()
-			foo379()
-			foo380()
-			foo381()
-			foo382()
-			foo383()
-			foo384()
-			foo385()
-			foo386()
-			foo387()
-			foo388()
-			foo389()
-			foo390()
-			foo391()
-			foo392()
-			foo393()
-			foo394()
-			foo395()
-			foo396()
-			foo397()
-			foo398()
-			foo399()
-			foo400()
-			foo401()
-			foo402()
-			foo403()
-			foo404()
-			foo405()
-			foo406()
-			foo407()
-			foo408()
-			foo409()
-			foo410()
-			foo411()
-			foo412()
-			foo413()
-			foo414()
-			foo415()
-			foo416()
-			foo417()
-			foo418()
-			foo419()
-			foo420()
-			foo421()
-			foo422()
-			foo423()
-			foo424()
-			foo425()
-			foo426()
-			foo427()
-			foo428()
-			foo429()
-			foo430()
-			foo431()
-			foo432()
-			foo433()
-			foo434()
-			foo435()
-			foo436()
-			foo437()
-			foo438()
-			foo439()
-			foo440()
-			foo441()
-			foo442()
-			foo443()
-			foo444()
-			foo445()
-			foo446()
-			foo447()
-			foo448()
-			foo449()
-			foo450()
-			foo451()
-			foo452()
-			foo453()
-			foo454()
-			foo455()
-			foo456()
-			foo457()
-			foo458()
-			foo459()
-			foo460()
-			foo461()
-			foo462()
-			foo463()
-			foo464()
-			foo465()
-			foo466()
-			foo467()
-			foo468()
-			foo469()
-			foo470()
-			foo471()
-			foo472()
-			foo473()
-			foo474()
-			foo475()
-			foo476()
-			foo477()
-			foo478()
-			foo479()
-			foo480()
-			foo481()
-			foo482()
-			foo483()
-			foo484()
-			foo485()
-			foo486()
-			foo487()
-			foo488()
-			foo489()
-			foo490()
-			foo491()
-			foo492()
-			foo493()
-			foo494()
-			foo495()
-			foo496()
-			foo497()
-			foo498()
-			foo499()
-			foo500()
-			foo501()
-			foo502()
-			foo503()
-			foo504()
-			foo505()
-			foo506()
-			foo507()
-			foo508()
-			foo509()
-			foo510()
-			foo511()
-		}
-		func $(i I) {
-			i.foo511()
+		func $(p int, q *int) bool {
+			return p < *q
 		}
 		`,
-		pos: []string{"TESTB"},
+		pos: []string{"CMPQ\t\\(.*\\), [A-Z]"},
 	},
 	{
 		fn: `
-		func $(i I) {
-			i.foo001()
+		func $(p *int, q int) bool {
+			return *p < q
 		}
 		`,
-		neg: []string{"TESTB"},
+		pos: []string{"CMPQ\t\\(.*\\), [A-Z]"},
+	},
+	{
+		fn: `
+		func $(p *int) bool {
+			return *p < 7
+		}
+		`,
+		pos: []string{"CMPQ\t\\(.*\\), [$]7"},
+	},
+	{
+		fn: `
+		func $(p *int) bool {
+			return 7 < *p
+		}
+		`,
+		pos: []string{"CMPQ\t\\(.*\\), [$]7"},
+	},
+	{
+		fn: `
+		func $(p **int) {
+			*p = nil
+		}
+		`,
+		pos: []string{"CMPL\truntime.writeBarrier\\(SB\\), [$]0"},
 	},
 }
 
 var linux386Tests = []*asmTest{
-	{
-		fn: `
-		func f0(b []byte) uint32 {
-			return binary.LittleEndian.Uint32(b)
-		}
-		`,
-		pos: []string{"\tMOVL\t\\(.*\\),"},
-	},
-	{
-		fn: `
-		func f1(b []byte, i int) uint32 {
-			return binary.LittleEndian.Uint32(b[i:])
-		}
-		`,
-		pos: []string{"\tMOVL\t\\(.*\\)\\(.*\\*1\\),"},
-	},
-
-	// multiplication by powers of two
-	{
-		fn: `
-		func $(n int) int {
-			return 32*n
-		}
-		`,
-		pos: []string{"SHLL"},
-		neg: []string{"IMULL"},
-	},
-	{
-		fn: `
-		func $(n int) int {
-			return -64*n
-		}
-		`,
-		pos: []string{"SHLL"},
-		neg: []string{"IMULL"},
-	},
-
 	// multiplication merging tests
 	{
 		fn: `
@@ -1900,70 +1023,6 @@ var linux386Tests = []*asmTest{
 var linuxS390XTests = []*asmTest{
 	{
 		fn: `
-		func f0(b []byte) uint32 {
-			return binary.LittleEndian.Uint32(b)
-		}
-		`,
-		pos: []string{"\tMOVWBR\t\\(.*\\),"},
-	},
-	{
-		fn: `
-		func f1(b []byte, i int) uint32 {
-			return binary.LittleEndian.Uint32(b[i:])
-		}
-		`,
-		pos: []string{"\tMOVWBR\t\\(.*\\)\\(.*\\*1\\),"},
-	},
-	{
-		fn: `
-		func f2(b []byte) uint64 {
-			return binary.LittleEndian.Uint64(b)
-		}
-		`,
-		pos: []string{"\tMOVDBR\t\\(.*\\),"},
-	},
-	{
-		fn: `
-		func f3(b []byte, i int) uint64 {
-			return binary.LittleEndian.Uint64(b[i:])
-		}
-		`,
-		pos: []string{"\tMOVDBR\t\\(.*\\)\\(.*\\*1\\),"},
-	},
-	{
-		fn: `
-		func f4(b []byte) uint32 {
-			return binary.BigEndian.Uint32(b)
-		}
-		`,
-		pos: []string{"\tMOVWZ\t\\(.*\\),"},
-	},
-	{
-		fn: `
-		func f5(b []byte, i int) uint32 {
-			return binary.BigEndian.Uint32(b[i:])
-		}
-		`,
-		pos: []string{"\tMOVWZ\t\\(.*\\)\\(.*\\*1\\),"},
-	},
-	{
-		fn: `
-		func f6(b []byte) uint64 {
-			return binary.BigEndian.Uint64(b)
-		}
-		`,
-		pos: []string{"\tMOVD\t\\(.*\\),"},
-	},
-	{
-		fn: `
-		func f7(b []byte, i int) uint64 {
-			return binary.BigEndian.Uint64(b[i:])
-		}
-		`,
-		pos: []string{"\tMOVD\t\\(.*\\)\\(.*\\*1\\),"},
-	},
-	{
-		fn: `
 		func f8(x uint64) uint64 {
 			return x<<7 + x>>57
 		}
@@ -2043,177 +1102,6 @@ var linuxS390XTests = []*asmTest{
 		`,
 		pos: []string{"\tFMSUBS\t"},
 	},
-	// Intrinsic tests for math/bits
-	{
-		fn: `
-		func f18(a uint64) int {
-			return bits.TrailingZeros64(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f19(a uint32) int {
-			return bits.TrailingZeros32(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t", "\tMOVWZ\t"},
-	},
-	{
-		fn: `
-		func f20(a uint16) int {
-			return bits.TrailingZeros16(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t", "\tOR\t\\$65536,"},
-	},
-	{
-		fn: `
-		func f21(a uint8) int {
-			return bits.TrailingZeros8(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t", "\tOR\t\\$256,"},
-	},
-	// Intrinsic tests for math/bits
-	{
-		fn: `
-		func f22(a uint64) uint64 {
-			return bits.ReverseBytes64(a)
-		}
-		`,
-		pos: []string{"\tMOVDBR\t"},
-	},
-	{
-		fn: `
-		func f23(a uint32) uint32 {
-			return bits.ReverseBytes32(a)
-		}
-		`,
-		pos: []string{"\tMOVWBR\t"},
-	},
-	{
-		fn: `
-		func f24(a uint64) int {
-			return bits.Len64(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f25(a uint32) int {
-			return bits.Len32(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f26(a uint16) int {
-			return bits.Len16(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f27(a uint8) int {
-			return bits.Len8(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f28(a uint) int {
-			return bits.Len(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f29(a uint64) int {
-			return bits.LeadingZeros64(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f30(a uint32) int {
-			return bits.LeadingZeros32(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f31(a uint16) int {
-			return bits.LeadingZeros16(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f32(a uint8) int {
-			return bits.LeadingZeros8(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	{
-		fn: `
-		func f33(a uint) int {
-			return bits.LeadingZeros(a)
-		}
-		`,
-		pos: []string{"\tFLOGR\t"},
-	},
-	// Intrinsic tests for math.
-	{
-		fn: `
-		func ceil(x float64) float64 {
-			return math.Ceil(x)
-		}
-		`,
-		pos: []string{"\tFIDBR\t[$]6"},
-	},
-	{
-		fn: `
-		func floor(x float64) float64 {
-			return math.Floor(x)
-		}
-		`,
-		pos: []string{"\tFIDBR\t[$]7"},
-	},
-	{
-		fn: `
-		func round(x float64) float64 {
-			return math.Round(x)
-		}
-		`,
-		pos: []string{"\tFIDBR\t[$]1"},
-	},
-	{
-		fn: `
-		func trunc(x float64) float64 {
-			return math.Trunc(x)
-		}
-		`,
-		pos: []string{"\tFIDBR\t[$]5"},
-	},
-	{
-		fn: `
-		func roundToEven(x float64) float64 {
-			return math.RoundToEven(x)
-		}
-		`,
-		pos: []string{"\tFIDBR\t[$]4"},
-	},
 	{
 		// check that stack store is optimized away
 		fn: `
@@ -2224,141 +1112,9 @@ var linuxS390XTests = []*asmTest{
 		`,
 		pos: []string{"TEXT\t.*, [$]0-8"},
 	},
-	// Constant propagation through raw bits conversions.
-	{
-		// uint32 constant converted to float32 constant
-		fn: `
-		func $(x float32) float32 {
-			if x > math.Float32frombits(0x3f800000) {
-				return -x
-			}
-			return x
-		}
-		`,
-		pos: []string{"\tFMOVS\t[$]f32.3f800000\\(SB\\)"},
-	},
-	{
-		// float32 constant converted to uint32 constant
-		fn: `
-		func $(x uint32) uint32 {
-			if x > math.Float32bits(1) {
-				return -x
-			}
-			return x
-		}
-		`,
-		neg: []string{"\tFMOVS\t"},
-	},
-	// Constant propagation through float comparisons.
-	{
-		fn: `
-		func $() bool {
-			return 0.5 == float64(uint32(1)) ||
-				1.5 > float64(uint64(1<<63)) ||
-				math.NaN() == math.NaN()
-		}
-		`,
-		pos: []string{"\tMOV(B|BZ|D)\t[$]0,"},
-		neg: []string{"\tFCMPU\t", "\tMOV(B|BZ|D)\t[$]1,"},
-	},
-	{
-		fn: `
-		func $() bool {
-			return float32(0.5) <= float32(int64(1)) &&
-				float32(1.5) >= float32(int32(-1<<31)) &&
-				float32(math.NaN()) != float32(math.NaN())
-		}
-		`,
-		pos: []string{"\tMOV(B|BZ|D)\t[$]1,"},
-		neg: []string{"\tCEBR\t", "\tMOV(B|BZ|D)\t[$]0,"},
-	},
-	// math tests
-	{
-		fn: `
-		func $(x float64) float64 {
-			return math.Abs(x)
-		}
-		`,
-		pos: []string{"\tLPDFR\t"},
-		neg: []string{"\tMOVD\t"}, // no integer loads/stores
-	},
-	{
-		fn: `
-		func $(x float32) float32 {
-			return float32(math.Abs(float64(x)))
-		}
-		`,
-		pos: []string{"\tLPDFR\t"},
-		neg: []string{"\tLDEBR\t", "\tLEDBR\t"}, // no float64 conversion
-	},
-	{
-		fn: `
-		func $(x float64) float64 {
-			return math.Float64frombits(math.Float64bits(x)|1<<63)
-		}
-		`,
-		pos: []string{"\tLNDFR\t"},
-		neg: []string{"\tMOVD\t"}, // no integer loads/stores
-	},
-	{
-		fn: `
-		func $(x float64) float64 {
-			return -math.Abs(x)
-		}
-		`,
-		pos: []string{"\tLNDFR\t"},
-		neg: []string{"\tMOVD\t"}, // no integer loads/stores
-	},
-	{
-		fn: `
-		func $(x, y float64) float64 {
-			return math.Copysign(x, y)
-		}
-		`,
-		pos: []string{"\tCPSDR\t"},
-		neg: []string{"\tMOVD\t"}, // no integer loads/stores
-	},
-	{
-		fn: `
-		func $(x float64) float64 {
-			return math.Copysign(x, -1)
-		}
-		`,
-		pos: []string{"\tLNDFR\t"},
-		neg: []string{"\tMOVD\t"}, // no integer loads/stores
-	},
-	{
-		fn: `
-		func $(x float64) float64 {
-			return math.Copysign(-1, x)
-		}
-		`,
-		pos: []string{"\tCPSDR\t"},
-		neg: []string{"\tMOVD\t"}, // no integer loads/stores
-	},
 }
 
 var linuxARMTests = []*asmTest{
-	// multiplication by powers of two
-	{
-		fn: `
-		func $(n int) int {
-			return 16*n
-		}
-		`,
-		pos: []string{"\tSLL\t[$]4"},
-		neg: []string{"\tMUL\t"},
-	},
-	{
-		fn: `
-		func $(n int) int {
-			return -32*n
-		}
-		`,
-		pos: []string{"\tSLL\t[$]5"},
-		neg: []string{"\tMUL\t"},
-	},
-
 	{
 		fn: `
 		func f0(x uint32) uint32 {
@@ -2384,86 +1140,6 @@ var linuxARMTests = []*asmTest{
 		pos: []string{"\tMOVW\tR[0-9]+@>25,"},
 	},
 	{
-		fn: `
-		func f3(a uint64) int {
-			return bits.Len64(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f4(a uint32) int {
-			return bits.Len32(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f5(a uint16) int {
-			return bits.Len16(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f6(a uint8) int {
-			return bits.Len8(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f7(a uint) int {
-			return bits.Len(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f8(a uint64) int {
-			return bits.LeadingZeros64(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f9(a uint32) int {
-			return bits.LeadingZeros32(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f10(a uint16) int {
-			return bits.LeadingZeros16(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f11(a uint8) int {
-			return bits.LeadingZeros8(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f12(a uint) int {
-			return bits.LeadingZeros(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
 		// make sure assembly output has matching offset and base register.
 		fn: `
 		func f13(a, b int) int {
@@ -2486,26 +1162,6 @@ var linuxARMTests = []*asmTest{
 }
 
 var linuxARM64Tests = []*asmTest{
-	// multiplication by powers of two
-	{
-		fn: `
-		func $(n int) int {
-			return 64*n
-		}
-		`,
-		pos: []string{"\tLSL\t[$]6"},
-		neg: []string{"\tMUL\t"},
-	},
-	{
-		fn: `
-		func $(n int) int {
-			return -128*n
-		}
-		`,
-		pos: []string{"\tLSL\t[$]7"},
-		neg: []string{"\tMUL\t"},
-	},
-
 	{
 		fn: `
 		func f0(x uint64) uint64 {
@@ -2556,99 +1212,30 @@ var linuxARM64Tests = []*asmTest{
 	},
 	{
 		fn: `
-		func f22(a uint64) uint64 {
-			return bits.ReverseBytes64(a)
+		func $(x, y uint32) uint32 {
+			return x &^ y
 		}
 		`,
-		pos: []string{"\tREV\t"},
+		pos: []string{"\tBIC\t"},
+		neg: []string{"\tAND\t"},
 	},
 	{
 		fn: `
-		func f23(a uint32) uint32 {
-			return bits.ReverseBytes32(a)
+		func $(x, y uint32) uint32 {
+			return x ^ ^y
 		}
 		`,
-		pos: []string{"\tREVW\t"},
+		pos: []string{"\tEON\t"},
+		neg: []string{"\tXOR\t"},
 	},
 	{
 		fn: `
-		func f24(a uint64) int {
-			return bits.Len64(a)
+		func $(x, y uint32) uint32 {
+			return x | ^y
 		}
 		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f25(a uint32) int {
-			return bits.Len32(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f26(a uint16) int {
-			return bits.Len16(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f27(a uint8) int {
-			return bits.Len8(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f28(a uint) int {
-			return bits.Len(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f29(a uint64) int {
-			return bits.LeadingZeros64(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f30(a uint32) int {
-			return bits.LeadingZeros32(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f31(a uint16) int {
-			return bits.LeadingZeros16(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f32(a uint8) int {
-			return bits.LeadingZeros8(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f33(a uint) int {
-			return bits.LeadingZeros(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
+		pos: []string{"\tORN\t"},
+		neg: []string{"\tORR\t"},
 	},
 	{
 		fn: `
@@ -2697,89 +1284,316 @@ var linuxARM64Tests = []*asmTest{
 		pos: []string{"LSL\t\\$17"},
 		neg: []string{"CMP"},
 	},
+	{
+		fn: `
+		func $(a int32, ptr *int) {
+			if a >= 0 {
+				*ptr = 0
+			}
+		}
+		`,
+		pos: []string{"TBNZ"},
+	},
+	{
+		fn: `
+		func $(a int64, ptr *int) {
+			if a >= 0 {
+				*ptr = 0
+			}
+		}
+		`,
+		pos: []string{"TBNZ"},
+	},
+	{
+		fn: `
+		func $(a int32, ptr *int) {
+			if a < 0 {
+				*ptr = 0
+			}
+		}
+		`,
+		pos: []string{"TBZ"},
+	},
+	{
+		fn: `
+		func $(a int64, ptr *int) {
+			if a < 0 {
+				*ptr = 0
+			}
+		}
+		`,
+		pos: []string{"TBZ"},
+	},
+	// Load-combining tests.
+	{
+		fn: `
+		func $(s []byte) uint16 {
+			return uint16(s[0]) | uint16(s[1]) << 8
+		}
+		`,
+		pos: []string{"\tMOVHU\t\\(R[0-9]+\\)"},
+		neg: []string{"ORR\tR[0-9]+<<8\t"},
+	},
+	{
+		// make sure that CSEL is emitted for conditional moves
+		fn: `
+		func f37(c int) int {
+		     x := c + 4
+		     if c < 0 {
+		     	x = 182
+		     }
+		     return x
+		}
+		`,
+		pos: []string{"\tCSEL\t"},
+	},
+	// Check that zero stores are combine into larger stores
+	{
+		fn: `
+		func $(b []byte) {
+			_ = b[1] // early bounds check to guarantee safety of writes below
+			b[0] = 0
+			b[1] = 0
+		}
+		`,
+		pos: []string{"MOVH\tZR"},
+		neg: []string{"MOVB"},
+	},
+	{
+		fn: `
+		func $(b []byte) {
+			_ = b[1] // early bounds check to guarantee safety of writes below
+			b[1] = 0
+			b[0] = 0
+		}
+		`,
+		pos: []string{"MOVH\tZR"},
+		neg: []string{"MOVB"},
+	},
+	{
+		fn: `
+		func $(b []byte) {
+			_ = b[3] // early bounds check to guarantee safety of writes below
+			b[0] = 0
+			b[1] = 0
+			b[2] = 0
+			b[3] = 0
+		}
+		`,
+		pos: []string{"MOVW\tZR"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(b []byte) {
+			_ = b[3] // early bounds check to guarantee safety of writes below
+			b[2] = 0
+			b[3] = 0
+			b[1] = 0
+			b[0] = 0
+		}
+		`,
+		pos: []string{"MOVW\tZR"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(h []uint16) {
+			_ = h[1] // early bounds check to guarantee safety of writes below
+			h[0] = 0
+			h[1] = 0
+		}
+		`,
+		pos: []string{"MOVW\tZR"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(h []uint16) {
+			_ = h[1] // early bounds check to guarantee safety of writes below
+			h[1] = 0
+			h[0] = 0
+		}
+		`,
+		pos: []string{"MOVW\tZR"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(b []byte) {
+			_ = b[7] // early bounds check to guarantee safety of writes below
+			b[0] = 0
+			b[1] = 0
+			b[2] = 0
+			b[3] = 0
+			b[4] = 0
+			b[5] = 0
+			b[6] = 0
+			b[7] = 0
+		}
+		`,
+		pos: []string{"MOVD\tZR"},
+		neg: []string{"MOVB", "MOVH", "MOVW"},
+	},
+	{
+		fn: `
+		func $(h []uint16) {
+			_ = h[3] // early bounds check to guarantee safety of writes below
+			h[0] = 0
+			h[1] = 0
+			h[2] = 0
+			h[3] = 0
+		}
+		`,
+		pos: []string{"MOVD\tZR"},
+		neg: []string{"MOVB", "MOVH", "MOVW"},
+	},
+	{
+		fn: `
+		func $(h []uint16) {
+			_ = h[3] // early bounds check to guarantee safety of writes below
+			h[2] = 0
+			h[3] = 0
+			h[1] = 0
+			h[0] = 0
+		}
+		`,
+		pos: []string{"MOVD\tZR"},
+		neg: []string{"MOVB", "MOVH", "MOVW"},
+	},
+	{
+		fn: `
+		func $(w []uint32) {
+			_ = w[1] // early bounds check to guarantee safety of writes below
+			w[0] = 0
+			w[1] = 0
+		}
+		`,
+		pos: []string{"MOVD\tZR"},
+		neg: []string{"MOVB", "MOVH", "MOVW"},
+	},
+	{
+		fn: `
+		func $(w []uint32) {
+			_ = w[1] // early bounds check to guarantee safety of writes below
+			w[1] = 0
+			w[0] = 0
+		}
+		`,
+		pos: []string{"MOVD\tZR"},
+		neg: []string{"MOVB", "MOVH", "MOVW"},
+	},
+	{
+		fn: `
+		func $(b []byte) {
+			_ = b[15] // early bounds check to guarantee safety of writes below
+			b[0] = 0
+			b[1] = 0
+			b[2] = 0
+			b[3] = 0
+			b[4] = 0
+			b[5] = 0
+			b[6] = 0
+			b[7] = 0
+			b[8] = 0
+			b[9] = 0
+			b[10] = 0
+			b[11] = 0
+			b[12] = 0
+			b[13] = 0
+			b[15] = 0
+			b[14] = 0
+		}
+		`,
+		pos: []string{"STP"},
+		neg: []string{"MOVB", "MOVH", "MOVW"},
+	},
+	{
+		fn: `
+		func $(h []uint16) {
+			_ = h[7] // early bounds check to guarantee safety of writes below
+			h[0] = 0
+			h[1] = 0
+			h[2] = 0
+			h[3] = 0
+			h[4] = 0
+			h[5] = 0
+			h[6] = 0
+			h[7] = 0
+		}
+		`,
+		pos: []string{"STP"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(w []uint32) {
+			_ = w[3] // early bounds check to guarantee safety of writes below
+			w[0] = 0
+			w[1] = 0
+			w[2] = 0
+			w[3] = 0
+		}
+		`,
+		pos: []string{"STP"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(w []uint32) {
+			_ = w[3] // early bounds check to guarantee safety of writes below
+			w[1] = 0
+			w[0] = 0
+			w[3] = 0
+			w[2] = 0
+		}
+		`,
+		pos: []string{"STP"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(d []uint64) {
+			_ = d[1] // early bounds check to guarantee safety of writes below
+			d[0] = 0
+			d[1] = 0
+		}
+		`,
+		pos: []string{"STP"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(d []uint64) {
+			_ = d[1] // early bounds check to guarantee safety of writes below
+			d[1] = 0
+			d[0] = 0
+		}
+		`,
+		pos: []string{"STP"},
+		neg: []string{"MOVB", "MOVH"},
+	},
+	{
+		fn: `
+		func $(a *[39]byte) {
+			*a = [39]byte{}
+		}
+		`,
+		pos: []string{"MOVD"},
+		neg: []string{"MOVB", "MOVH", "MOVW"},
+	},
+	{
+		fn: `
+		func $(a *[30]byte) {
+			*a = [30]byte{}
+		}
+		`,
+		pos: []string{"STP"},
+		neg: []string{"MOVB", "MOVH", "MOVW"},
+	},
 }
 
 var linuxMIPSTests = []*asmTest{
-	{
-		fn: `
-		func f0(a uint64) int {
-			return bits.Len64(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f1(a uint32) int {
-			return bits.Len32(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f2(a uint16) int {
-			return bits.Len16(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f3(a uint8) int {
-			return bits.Len8(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f4(a uint) int {
-			return bits.Len(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f5(a uint64) int {
-			return bits.LeadingZeros64(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f6(a uint32) int {
-			return bits.LeadingZeros32(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f7(a uint16) int {
-			return bits.LeadingZeros16(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f8(a uint8) int {
-			return bits.LeadingZeros8(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
-	{
-		fn: `
-		func f9(a uint) int {
-			return bits.LeadingZeros(a)
-		}
-		`,
-		pos: []string{"\tCLZ\t"},
-	},
 	{
 		// check that stack store is optimized away
 		fn: `
@@ -2905,79 +1719,6 @@ var linuxPPC64LETests = []*asmTest{
 	},
 
 	{
-		fn: `
-                func f12(a, b float64) float64 {
-                        return math.Copysign(a, b)
-                }
-                `,
-		pos: []string{"\tFCPSGN\t"},
-	},
-
-	{
-		fn: `
-                func f13(a float64) float64 {
-                        return math.Abs(a)
-                }
-                `,
-		pos: []string{"\tFABS\t"},
-	},
-
-	{
-		fn: `
-		func f14(b []byte) uint16 {
-			return binary.LittleEndian.Uint16(b)
-	}
-		`,
-		pos: []string{"\tMOVHZ\t"},
-	},
-	{
-		fn: `
-		func f15(b []byte) uint32 {
-			return binary.LittleEndian.Uint32(b)
-		}
-		`,
-		pos: []string{"\tMOVWZ\t"},
-	},
-
-	{
-		fn: `
-		func f16(b []byte) uint64 {
-			return binary.LittleEndian.Uint64(b)
-		}
-		`,
-		pos: []string{"\tMOVD\t"},
-		neg: []string{"MOVBZ", "MOVHZ", "MOVWZ"},
-	},
-
-	{
-		fn: `
-		func f17(b []byte, v uint16) {
-			binary.LittleEndian.PutUint16(b, v)
-		}
-		`,
-		pos: []string{"\tMOVH\t"},
-	},
-
-	{
-		fn: `
-		func f18(b []byte, v uint32) {
-			binary.LittleEndian.PutUint32(b, v)
-		}
-		`,
-		pos: []string{"\tMOVW\t"},
-	},
-
-	{
-		fn: `
-		func f19(b []byte, v uint64) {
-			binary.LittleEndian.PutUint64(b, v)
-		}
-		`,
-		pos: []string{"\tMOVD\t"},
-		neg: []string{"MOVB", "MOVH", "MOVW"},
-	},
-
-	{
 		// check that stack store is optimized away
 		fn: `
 		func $() int {
@@ -2986,31 +1727,6 @@ var linuxPPC64LETests = []*asmTest{
 		}
 		`,
 		pos: []string{"TEXT\t.*, [$]0-8"},
-	},
-	// Constant propagation through raw bits conversions.
-	{
-		// uint32 constant converted to float32 constant
-		fn: `
-		func $(x float32) float32 {
-			if x > math.Float32frombits(0x3f800000) {
-				return -x
-			}
-			return x
-		}
-		`,
-		pos: []string{"\tFMOVS\t[$]f32.3f800000\\(SB\\)"},
-	},
-	{
-		// float32 constant converted to uint32 constant
-		fn: `
-		func $(x uint32) uint32 {
-			if x > math.Float32bits(1) {
-				return -x
-			}
-			return x
-		}
-		`,
-		neg: []string{"\tFMOVS\t"},
 	},
 }
 

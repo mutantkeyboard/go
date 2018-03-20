@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -131,6 +132,31 @@ const (
 	LevelSerializable
 	LevelLinearizable
 )
+
+func (i IsolationLevel) String() string {
+	switch i {
+	case LevelDefault:
+		return "Default"
+	case LevelReadUncommitted:
+		return "Read Uncommitted"
+	case LevelReadCommitted:
+		return "Read Committed"
+	case LevelWriteCommitted:
+		return "Write Committed"
+	case LevelRepeatableRead:
+		return "Repeatable Read"
+	case LevelSnapshot:
+		return "Snapshot"
+	case LevelSerializable:
+		return "Serializable"
+	case LevelLinearizable:
+		return "Linearizable"
+	default:
+		return "IsolationLevel(" + strconv.Itoa(int(i)) + ")"
+	}
+}
+
+var _ fmt.Stringer = LevelDefault
 
 // TxOptions holds the transaction options to be used in DB.BeginTx.
 type TxOptions struct {
@@ -1914,7 +1940,7 @@ func (tx *Tx) closePrepared() {
 // Commit commits the transaction.
 func (tx *Tx) Commit() error {
 	// Check context first to avoid transaction leak.
-	// If put it behind tx.done CompareAndSwap statement, we cant't ensure
+	// If put it behind tx.done CompareAndSwap statement, we can't ensure
 	// the consistency between tx.done and the real COMMIT operation.
 	select {
 	default:
@@ -2262,13 +2288,6 @@ func resultFromStatement(ctx context.Context, ci driver.Conn, ds *driverStmt, ar
 		return nil, err
 	}
 
-	// -1 means the driver doesn't know how to count the number of
-	// placeholders, so we won't sanity check input here and instead let the
-	// driver deal with errors.
-	if want := ds.si.NumInput(); want >= 0 && want != len(dargs) {
-		return nil, fmt.Errorf("sql: statement expects %d inputs; got %d", want, len(dargs))
-	}
-
 	resi, err := ctxDriverStmtExec(ctx, ds.si, dargs)
 	if err != nil {
 		return nil, err
@@ -2317,7 +2336,7 @@ func (s *Stmt) connStmt(ctx context.Context, strategy connReuseStrategy) (dc *dr
 	}
 
 	// In a transaction or connection, we always use the connection that the
-	// the stmt was created on.
+	// stmt was created on.
 	if s.cg != nil {
 		s.mu.Unlock()
 		dc, releaseConn, err = s.cg.grabConn(ctx) // blocks, waiting for the connection.
@@ -2438,13 +2457,6 @@ func rowsiFromStatement(ctx context.Context, ci driver.Conn, ds *driverStmt, arg
 	dargs, err := driverArgsConnLocked(ci, ds, args)
 	if err != nil {
 		return nil, err
-	}
-
-	// -1 means the driver doesn't know how to count the number of
-	// placeholders, so we won't sanity check input here and instead let the
-	// driver deal with errors.
-	if want := ds.si.NumInput(); want >= 0 && want != len(dargs) {
-		return nil, fmt.Errorf("sql: statement expects %d inputs; got %d", want, len(dargs))
 	}
 
 	rowsi, err := ctxDriverStmtQuery(ctx, ds.si, dargs)
@@ -2885,7 +2897,7 @@ func (rs *Rows) Scan(dest ...interface{}) error {
 	for i, sv := range rs.lastcols {
 		err := convertAssign(dest[i], sv)
 		if err != nil {
-			return fmt.Errorf("sql: Scan error on column index %d: %v", i, err)
+			return fmt.Errorf(`sql: Scan error on column index %d, name %q: %v`, i, rs.rowsi.Columns()[i], err)
 		}
 	}
 	return nil

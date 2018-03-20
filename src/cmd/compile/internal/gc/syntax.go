@@ -59,6 +59,11 @@ type Node struct {
 	Etype types.EType // op for OASOP, etype for OTYPE, exclam for export, 6g saved reg, ChanDir for OTCHAN, for OINDEXMAP 1=LHS,0=RHS
 }
 
+func (n *Node) IsSynthetic() bool {
+	name := n.Sym.Name
+	return name[0] == '.' || name[0] == '~'
+}
+
 // IsAutoTmp indicates if n was created by the compiler as a temporary,
 // based on the setting of the .AutoTemp flag in n's Name.
 func (n *Node) IsAutoTmp() bool {
@@ -237,7 +242,6 @@ type Name struct {
 	Param     *Param     // additional fields for ONAME, OTYPE
 	Decldepth int32      // declaration loop depth, increased for every loop or label
 	Vargen    int32      // unique name for ONAME within a function.  Function outputs are numbered starting at one.
-	Funcdepth int32
 
 	used  bool // for variable declared and not used error
 	flags bitset8
@@ -274,9 +278,6 @@ type Param struct {
 
 	// ONAME PAUTOHEAP
 	Stackcopy *Node // the PPARAM/PPARAMOUT on-stack slot (moved func params only)
-
-	// ONAME PPARAM
-	Field *types.Field // TFIELD in arg struct
 
 	// ONAME closure linkage
 	// Consider:
@@ -428,7 +429,6 @@ type Func struct {
 
 	Inl     Nodes // copy of the body for use in inlining
 	InlCost int32
-	Depth   int32
 
 	Label int32 // largest auto-generated label in this function
 
@@ -464,7 +464,6 @@ const (
 	funcNeedctxt                  // function uses context register (has closure variables)
 	funcReflectMethod             // function calls reflect.Type.Method or MethodByName
 	funcIsHiddenClosure
-	funcNoFramePointer      // Must not use a frame pointer for this function
 	funcHasDefer            // contains a defer statement
 	funcNilCheckDisabled    // disable nil checks when compiling this function
 	funcInlinabilityChecked // inliner has already determined whether the function is inlinable
@@ -476,7 +475,6 @@ func (f *Func) Wrapper() bool             { return f.flags&funcWrapper != 0 }
 func (f *Func) Needctxt() bool            { return f.flags&funcNeedctxt != 0 }
 func (f *Func) ReflectMethod() bool       { return f.flags&funcReflectMethod != 0 }
 func (f *Func) IsHiddenClosure() bool     { return f.flags&funcIsHiddenClosure != 0 }
-func (f *Func) NoFramePointer() bool      { return f.flags&funcNoFramePointer != 0 }
 func (f *Func) HasDefer() bool            { return f.flags&funcHasDefer != 0 }
 func (f *Func) NilCheckDisabled() bool    { return f.flags&funcNilCheckDisabled != 0 }
 func (f *Func) InlinabilityChecked() bool { return f.flags&funcInlinabilityChecked != 0 }
@@ -487,7 +485,6 @@ func (f *Func) SetWrapper(b bool)             { f.flags.set(funcWrapper, b) }
 func (f *Func) SetNeedctxt(b bool)            { f.flags.set(funcNeedctxt, b) }
 func (f *Func) SetReflectMethod(b bool)       { f.flags.set(funcReflectMethod, b) }
 func (f *Func) SetIsHiddenClosure(b bool)     { f.flags.set(funcIsHiddenClosure, b) }
-func (f *Func) SetNoFramePointer(b bool)      { f.flags.set(funcNoFramePointer, b) }
 func (f *Func) SetHasDefer(b bool)            { f.flags.set(funcHasDefer, b) }
 func (f *Func) SetNilCheckDisabled(b bool)    { f.flags.set(funcNilCheckDisabled, b) }
 func (f *Func) SetInlinabilityChecked(b bool) { f.flags.set(funcInlinabilityChecked, b) }

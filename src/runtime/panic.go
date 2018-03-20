@@ -280,8 +280,9 @@ func freedefer(d *_defer) {
 	d.started = false
 	d.sp = 0
 	d.pc = 0
-	d.fn = nil
-	d._panic = nil
+	// d._panic and d.fn must be nil already.
+	// If not, we would have called freedeferpanic or freedeferfn above,
+	// both of which throw.
 	d.link = nil
 
 	pp.deferpool[sc] = append(pp.deferpool[sc], d)
@@ -389,7 +390,6 @@ func Goexit() {
 
 // Call all Error and String methods before freezing the world.
 // Used when crashing with panicking.
-// This must match types handled by printany.
 func preprintpanics(p *_panic) {
 	defer func() {
 		if recover() != nil {
@@ -415,8 +415,6 @@ func printpanics(p *_panic) {
 		print("\t")
 	}
 	print("panic: ")
-	// Because of preprintpanics, p.arg cannot be an error or
-	// stringer, so this won't call into user code.
 	printany(p.arg)
 	if p.recovered {
 		print(" [recovered]")
@@ -784,5 +782,43 @@ func canpanic(gp *g) bool {
 	if GOOS == "windows" && _m_.libcallsp != 0 {
 		return false
 	}
+	return true
+}
+
+// shouldPushSigpanic returns true if pc should be used as sigpanic's
+// return PC (pushing a frame for the call). Otherwise, it should be
+// left alone so that LR is used as sigpanic's return PC, effectively
+// replacing the top-most frame with sigpanic. This is used by
+// preparePanic.
+func shouldPushSigpanic(gp *g, pc, lr uintptr) bool {
+	if pc == 0 {
+		// Probably a call to a nil func. The old LR is more
+		// useful in the stack trace. Not pushing the frame
+		// will make the trace look like a call to sigpanic
+		// instead. (Otherwise the trace will end at sigpanic
+		// and we won't get to see who faulted.)
+		return false
+	}
+	// If we don't recognize the PC as code, but we do recognize
+	// the link register as code, then this assumes the panic was
+	// caused by a call to non-code. In this case, we want to
+	// ignore this call to make unwinding show the context.
+	//
+	// If we running C code, we're not going to recognize pc as a
+	// Go function, so just assume it's good. Otherwise, traceback
+	// may try to read a stale LR that looks like a Go code
+	// pointer and wander into the woods.
+	if gp.m.incgo || findfunc(pc).valid() {
+		// This wasn't a bad call, so use PC as sigpanic's
+		// return PC.
+		return true
+	}
+	if findfunc(lr).valid() {
+		// This was a bad call, but the LR is good, so use the
+		// LR as sigpanic's return PC.
+		return false
+	}
+	// Neither the PC or LR is good. Hopefully pushing a frame
+	// will work.
 	return true
 }

@@ -1,5 +1,4 @@
 let args = ["js"];
-let trace = false;
 
 if (typeof process !== "undefined") {
   if (process.argv.length < 3) {
@@ -8,7 +7,6 @@ if (typeof process !== "undefined") {
   }
 
   args = args.concat(process.argv.slice(3));
-  trace = process.env.TRACE === "1";
   global.require = require;
 
   global.fs = require("fs");
@@ -66,49 +64,50 @@ if (typeof process !== "undefined") {
 const encoder = new TextEncoder("utf-8");
 const decoder = new TextDecoder("utf-8");
 
-let mod;
-let mem = new DataView(new ArrayBuffer(0)); // for editor autocompletion
-let names = [];
-let prevSP = 0;
+let mod, inst;
 let values = []; // TODO: GC
 
+function mem() {
+  return new DataView(inst.exports.mem.buffer);  
+}
+
 function setInt64(addr, v) {
-  mem.setUint32(addr + 0, v, true);
+  mem().setUint32(addr + 0, v, true);
   if (v >= 0) {
-    mem.setUint32(addr + 4, v / 4294967296, true);
+    mem().setUint32(addr + 4, v / 4294967296, true);
   } else {
-    mem.setUint32(addr + 4, -1, true); // FIXME
+    mem().setUint32(addr + 4, -1, true); // FIXME
   }
 }
 
 function getInt64(addr) {
-  const low = mem.getUint32(addr + 0, true);
-  const high = mem.getInt32(addr + 4, true);
+  const low = mem().getUint32(addr + 0, true);
+  const high = mem().getInt32(addr + 4, true);
   return low + high * 4294967296;
 }
 
 function loadValue(addr) {
-  const id = mem.getUint32(addr, true);
+  const id = mem().getUint32(addr, true);
   return values[id];
 }
 
 function storeValue(addr, v) {
   if (v === undefined) {
-    mem.setUint32(addr, 0, true);
+    mem().setUint32(addr, 0, true);
     return;
   }
   if (v === null) {
-    mem.setUint32(addr, 1, true);
+    mem().setUint32(addr, 1, true);
     return;
   }
   values.push(v);
-  mem.setUint32(addr, values.length - 1, true);
+  mem().setUint32(addr, values.length - 1, true);
 }
 
 function loadSlice(addr) {
   const array = getInt64(addr + 0);
   const len = getInt64(addr + 8);
-  return new Uint8Array(mem.buffer, array, len);
+  return new Uint8Array(inst.exports.mem.buffer, array, len);
 }
 
 function loadSliceOfValues(addr) {
@@ -116,7 +115,7 @@ function loadSliceOfValues(addr) {
   const len = getInt64(addr + 8);
   const a = new Array(len);
   for (let i = 0; i < len; i++) {
-    const id = mem.getUint32(array + i * 4, true);
+    const id = mem().getUint32(array + i * 4, true);
     a[i] = values[id];
   }
   return a;
@@ -125,7 +124,7 @@ function loadSliceOfValues(addr) {
 function loadString(addr) {
   const saddr = getInt64(addr + 0);
   const len = getInt64(addr + 8);
-  return decoder.decode(new DataView(mem.buffer, saddr, len));
+  return decoder.decode(new DataView(inst.exports.mem.buffer, saddr, len));
 }
 
 async function compileAndRun(source) {
@@ -142,15 +141,15 @@ async function run() {
     js: {
       // func wasmexit(code int32)
       "runtime.wasmexit": function (sp) {
-        process.exit(mem.getInt32(sp + 8, true));
+        process.exit(mem().getInt32(sp + 8, true));
       },
 
       // func wasmwrite(fd uintptr, p unsafe.Pointer, n int32)
       "runtime.wasmwrite": function (sp) {
         const fd = getInt64(sp + 8);
         const p = getInt64(sp + 16);
-        const n = mem.getInt32(sp + 24, true);
-        fs.writeSync(fd, new Uint8Array(mem.buffer, p, n));
+        const n = mem().getInt32(sp + 24, true);
+        fs.writeSync(fd, new Uint8Array(inst.exports.mem.buffer, p, n));
       },
 
       // func nanotime() int64
@@ -162,12 +161,12 @@ async function run() {
       "runtime.walltime": function (sp) {
         const msec = (new Date).getTime();
         setInt64(sp + 8, msec / 1000);
-        mem.setInt32(sp + 16, (msec % 1000) * 1000000, true);
+        mem().setInt32(sp + 16, (msec % 1000) * 1000000, true);
       },
 
       // func boolVal(value bool) Value
       "runtime/js.boolVal": function (sp) {
-        storeValue(sp + 16, mem.getUint8(sp + 8) !== 0);
+        storeValue(sp + 16, mem().getUint8(sp + 8) !== 0);
       },
 
       // func intVal(value int) Value
@@ -177,7 +176,7 @@ async function run() {
 
       // func floatVal(value float64) Value
       "runtime/js.floatVal": function (sp) {
-        storeValue(sp + 16, mem.getFloat64(sp + 8, true));
+        storeValue(sp + 16, mem().getFloat64(sp + 8, true));
       },
 
       // func stringVal(value string) Value
@@ -212,10 +211,10 @@ async function run() {
           const m = Reflect.get(v, loadString(sp + 16));
           const args = loadSliceOfValues(sp + 32);
           storeValue(sp + 56, Reflect.apply(m, v, args));
-          mem.setUint8(sp + 60, 1);
+          mem().setUint8(sp + 60, 1);
         } catch (err) {
           storeValue(sp + 56, err);
-          mem.setUint8(sp + 60, 0);
+          mem().setUint8(sp + 60, 0);
         }
       },
 
@@ -225,10 +224,10 @@ async function run() {
           const v = loadValue(sp + 8);
           const args = loadSliceOfValues(sp + 16);
           storeValue(sp + 40, Reflect.apply(v, undefined, args));
-          mem.setUint8(sp + 44, 1);
+          mem().setUint8(sp + 44, 1);
         } catch (err) {
           storeValue(sp + 40, err);
-          mem.setUint8(sp + 44, 0);
+          mem().setUint8(sp + 44, 0);
         }
       },
 
@@ -238,16 +237,16 @@ async function run() {
           const v = loadValue(sp + 8);
           const args = loadSliceOfValues(sp + 16);
           storeValue(sp + 40, Reflect.construct(v, args));
-          mem.setUint8(sp + 44, 1);
+          mem().setUint8(sp + 44, 1);
         } catch (err) {
           storeValue(sp + 40, err);
-          mem.setUint8(sp + 44, 0);
+          mem().setUint8(sp + 44, 0);
         }
       },
 
       // func (v Value) Float() float64
       "runtime/js.Value.Float": function (sp) {
-        mem.setFloat64(sp + 16, parseFloat(loadValue(sp + 8)), true);
+        mem().setFloat64(sp + 16, parseFloat(loadValue(sp + 8)), true);
       },
 
       // func (v Value) Int() int
@@ -257,7 +256,7 @@ async function run() {
 
       // func (v Value) Bool() bool
       "runtime/js.Value.Bool": function (sp) {
-        mem.setUint8(sp + 16, !!loadValue(sp + 8));
+        mem().setUint8(sp + 16, !!loadValue(sp + 8));
       },
 
       // func (v Value) Length() int
@@ -278,45 +277,20 @@ async function run() {
         loadSlice(sp + 16).set(str);
       },
 
-      "trace": function (pcF, pcB, sp) {
-        console.log(
-          `trace`,
-          String(sp).padStart(10),
-          String(pcF).padStart(10),
-          String(pcB).padStart(10),
-          sp <= prevSP ? "->" : "<-",
-          names[pcF],
-        );
-        prevSP = sp;
+      "debug": function (value) {
+        console.log(value);
       },
     }
   };
 
-  const nameSec = new SimpleStream(new Uint8Array(WebAssembly.Module.customSections(mod, "name")[0]));
-  while (!nameSec.atEnd()) {
-    const nameType = nameSec.readByte();
-    const namePayloadLen = nameSec.readUleb128();
-    const namePayloadData = new SimpleStream(nameSec.read(namePayloadLen));
-    if (nameType === 1) { // function names
-      const count = namePayloadData.readUleb128();
-      for (let i = 0; i < count; i++) {
-        const index = namePayloadData.readUleb128();
-        const nameLen = namePayloadData.readUleb128();
-        const nameStr = String.fromCharCode.apply(null, namePayloadData.read(nameLen));
-        names[index] = nameStr;
-      }
-    }
-  }
-
-  const inst = await WebAssembly.instantiate(mod, importObject);
-  values = [undefined, null, global, inst.exports.mem.buffer];
-  mem = new DataView(inst.exports.mem.buffer);
+  inst = await WebAssembly.instantiate(mod, importObject);
+  values = [undefined, null, global, inst.exports.mem];
 
   let offset = 4096;
 
   const strPtr = (str) => {
     let ptr = offset;
-    new Uint8Array(mem.buffer, offset, str.length + 1).set(encoder.encode(str + "\0"));
+    new Uint8Array(inst.exports.mem.buffer, offset, str.length + 1).set(encoder.encode(str + "\0"));
     offset += str.length + (8 - (str.length % 8));
     return ptr;
   };
@@ -336,50 +310,15 @@ async function run() {
 
   const argv = offset;
   argvPtrs.forEach((ptr) => {
-    mem.setUint32(offset, ptr, true);
-    mem.setUint32(offset + 4, 0, true);
+    mem().setUint32(offset, ptr, true);
+    mem().setUint32(offset + 4, 0, true);
     offset += 8;
   });
 
   try {
-    inst.exports.run(argc, argv, trace);
+    inst.exports.run(argc, argv);
   } catch (err) {
     console.error(err);
     process.exit(1);
-  }
-}
-
-class SimpleStream {
-  constructor(array) {
-    this.array = array;
-    this.offset = 0;
-  }
-
-  atEnd() {
-    return this.offset >= this.array.length;
-  }
-
-  read(len) {
-    const a = this.array.subarray(this.offset, this.offset + len);
-    this.offset += len;
-    return a;
-  }
-
-  readByte() {
-    const b = this.array[this.offset];
-    this.offset++;
-    return b;
-  }
-
-  readUleb128() {
-    let value = 0;
-    let shift = 0;
-    while (true) {
-      let byte = this.readByte();
-      value |= (byte & 0x7F) << shift;
-      if ((byte & 0x80) === 0) { break; }
-      shift += 7;
-    }
-    return value;
   }
 }

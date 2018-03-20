@@ -114,11 +114,17 @@ func ssaGenBlock(s *gc.SSAGenState, b, next *ssa.Block) {
 		panic("unexpected block")
 	}
 	s.Prog(wasm.AEnd)
+
+	if s.WasmStackSize != 0 {
+		panic("bad stack")
+	}
+	s.WasmStackSize = 0
 }
 
 func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 	switch v.Op {
 	case ssa.OpWasmLoweredStaticCall, ssa.OpWasmLoweredClosureCall, ssa.OpWasmLoweredInterCall:
+		s.PrepareCall(v)
 		if v.Aux == gc.Deferreturn {
 			// start new block before call to deferreturn so it can be called again via jmpdefer
 			s.Prog(wasm.AEnd)
@@ -127,14 +133,15 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 			getReg64(s, v.Args[1])
 			setReg(s, wasm.REG_CTX)
 		}
-		p := s.Call(v)
-		p.Pos = v.Pos
-		s.Prog(wasm.AEnd)
-
-	case ssa.OpWasmLoweredConvert:
-		if v.Args[0].Reg() != v.Reg() {
-			v.Fatalf("OpWasmLoweredConvert should be a no-op")
+		if sym, ok := v.Aux.(*obj.LSym); ok {
+			p := s.Prog(obj.ACALL)
+			p.To = obj.Addr{Type: obj.TYPE_MEM, Name: obj.NAME_EXTERN, Sym: sym}
+		} else {
+			getReg64(s, v.Args[0])
+			p := s.Prog(obj.ACALL)
+			p.To = obj.Addr{Type: obj.TYPE_CONST}
 		}
+		s.Prog(wasm.AEnd)
 
 	case ssa.OpWasmLoweredMove:
 		getReg32(s, v.Args[0])
@@ -161,6 +168,12 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 			gc.Warnl(v.Pos, "generated nil check")
 		}
 
+	case ssa.OpWasmLoweredWB:
+		getReg32(s, v.Args[0])
+		getReg64(s, v.Args[1])
+		p := s.Prog(obj.ACALL)
+		p.To = obj.Addr{Type: obj.TYPE_MEM, Sym: v.Aux.(*obj.LSym), Class: 1}
+
 	case ssa.OpWasmI64Store8, ssa.OpWasmI64Store16, ssa.OpWasmI64Store32, ssa.OpWasmI64Store, ssa.OpWasmF32Store, ssa.OpWasmF64Store:
 		getReg32(s, v.Args[0])
 		getReg64(s, v.Args[1])
@@ -168,14 +181,14 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 			s.Prog(wasm.AF32DemoteF64)
 		}
 		p := s.Prog(v.Op.Asm())
-		p.To = obj.Addr{Type: obj.TYPE_MEM, Offset: v.AuxInt}
+		p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: v.AuxInt}
 
 	case ssa.OpWasmI64Store8Const, ssa.OpWasmI64Store16Const, ssa.OpWasmI64Store32Const, ssa.OpWasmI64StoreConst:
 		valOff := v.AuxValAndOff()
 		getReg32(s, v.Args[0])
 		i64Const(s, valOff.Val())
 		p := s.Prog(v.Op.Asm())
-		p.To = obj.Addr{Type: obj.TYPE_MEM, Offset: valOff.Off()}
+		p.To = obj.Addr{Type: obj.TYPE_CONST, Offset: valOff.Off()}
 
 	case ssa.OpStoreReg:
 		getReg(s, wasm.REG_SP)
@@ -187,10 +200,17 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 		gc.AddrAuto(&p.To, v)
 
 	default:
-		if !v.HasReg() {
+		if v.WasmStack {
+			s.WasmStackSize++
+		}
+		if v.Type.IsMemory() || v.WasmStack {
 			return
 		}
 		ssaGenValueOnStack(s, v)
+		if s.WasmStackSize != 0 {
+			panic("bad stack")
+		}
+		s.WasmStackSize = 0
 		setReg(s, v.Reg())
 	}
 }
@@ -221,6 +241,9 @@ func ssaGenValueOnStack(s *gc.SSAGenState, v *ssa.Value) {
 		getReg64(s, v.Args[0])
 		s.Prog(wasm.AF32DemoteF64)
 		s.Prog(wasm.AF64PromoteF32)
+
+	case ssa.OpWasmLoweredConvert:
+		getReg64(s, v.Args[0]) // TODO optimize?
 
 	case ssa.OpWasmSelect:
 		getReg64(s, v.Args[0])
@@ -287,9 +310,6 @@ func ssaGenValueOnStack(s *gc.SSAGenState, v *ssa.Value) {
 		}
 
 	case ssa.OpCopy:
-		if v.Args[0].Type.IsMemory() {
-			return
-		}
 		getReg64(s, v.Args[0])
 
 	default:
@@ -299,7 +319,8 @@ func ssaGenValueOnStack(s *gc.SSAGenState, v *ssa.Value) {
 }
 
 func getReg32(s *gc.SSAGenState, v *ssa.Value) {
-	if !v.HasReg() {
+	if v.WasmStack {
+		s.WasmStackSize--
 		ssaGenValueOnStack(s, v)
 		s.Prog(wasm.AI32WrapI64)
 		return
@@ -313,7 +334,8 @@ func getReg32(s *gc.SSAGenState, v *ssa.Value) {
 }
 
 func getReg64(s *gc.SSAGenState, v *ssa.Value) {
-	if !v.HasReg() {
+	if v.WasmStack {
+		s.WasmStackSize--
 		ssaGenValueOnStack(s, v)
 		return
 	}

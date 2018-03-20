@@ -8,5 +8,5 @@ TEXT ·Sqrt(SB),NOSPLIT,$0
     Get SP
       F64Load x+0(FP)
     F64Sqrt
-	F64Store ret+8(FP)
+  F64Store ret+8(FP)
   RET

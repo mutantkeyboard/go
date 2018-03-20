@@ -5,19 +5,17 @@
 package runtime
 
 import (
+	"runtime/internal/sys"
 	"unsafe"
 )
-
-var allocEnd uintptr
 
 // Don't split the stack as this function may be invoked without a valid G,
 // which prevents us from allocating more stack.
 //go:nosplit
 func sysAlloc(n uintptr, sysStat *uint64) unsafe.Pointer {
-	// println("sysAlloc", n, uintptr(allocEnd))
-	p := unsafe.Pointer(allocEnd)
-	allocEnd += n
-	mSysStatInc(sysStat, n)
+	// println("sysAlloc", n)
+	p := sysReserve(nil, n)
+	sysMap(p, n, sysStat)
 	return p
 }
 
@@ -31,25 +29,41 @@ func sysUsed(v unsafe.Pointer, n uintptr) {
 // which prevents us from allocating more stack.
 //go:nosplit
 func sysFree(v unsafe.Pointer, n uintptr, sysStat *uint64) {
+	// println("sysFree", uintptr(v), n)
+	mSysStatDec(sysStat, n)
 }
 
 func sysFault(v unsafe.Pointer, n uintptr) {
 }
 
-func sysReserve(v unsafe.Pointer, n uintptr, reserved *bool) unsafe.Pointer {
-	if n > 1024*1024*1024 {
-		return nil
-	}
+var reserveEnd uintptr
+
+func sysReserve(v unsafe.Pointer, n uintptr) unsafe.Pointer {
 	// println("sysReserve", uintptr(v), n)
-	// TODO grow_memory
-	allocEnd = uintptr(v) + n
-	// growMemory(int32(allocEnd / sys.DefaultPhysPageSize))
-	*reserved = true
+
+	if reserveEnd < lastmoduledatap.end {
+		reserveEnd = lastmoduledatap.end
+	}
+	if uintptr(v) < reserveEnd {
+		v = unsafe.Pointer(reserveEnd)
+	}
+	reserveEnd = uintptr(v) + n
+
+	current := currentMemory()
+	needed := int32(reserveEnd/sys.DefaultPhysPageSize + 1)
+	if current < needed {
+		if growMemory(needed-current) == -1 {
+			return nil
+		}
+	}
+
 	return v
 }
 
+func currentMemory() int32
 func growMemory(pages int32) int32
 
-func sysMap(v unsafe.Pointer, n uintptr, reserved bool, sysStat *uint64) {
+func sysMap(v unsafe.Pointer, n uintptr, sysStat *uint64) {
+	// println("sysMap", uintptr(v), n)
 	mSysStatInc(sysStat, n)
 }

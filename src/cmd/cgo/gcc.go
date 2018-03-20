@@ -1350,7 +1350,7 @@ func (p *Package) gccDebug(stdin []byte, nnames int) (d *dwarf.Data, ints []int6
 			if len(data) <= strlen {
 				fatalf("invalid string literal")
 			}
-			strs[n] = string(data[:strlen])
+			strs[n] = data[:strlen]
 		}
 	}
 
@@ -2250,12 +2250,6 @@ func (c *typeConv) FuncArg(dtype dwarf.Type, pos token.Pos) *Type {
 				break
 			}
 
-			// If we already know the typedef for t just use that.
-			// See issue 19832.
-			if def := typedef[t.Go.(*ast.Ident).Name]; def != nil {
-				break
-			}
-
 			t = c.Type(ptr, pos)
 			if t == nil {
 				return nil
@@ -2707,7 +2701,7 @@ func (c *typeConv) badJNI(dt *dwarf.TypedefType) bool {
 }
 
 // jniTypes maps from JNI types that we want to be uintptrs, to the underlying type to which
-// they are mapped.  The base "jobject" maps to the empty string.
+// they are mapped. The base "jobject" maps to the empty string.
 var jniTypes = map[string]string{
 	"jobject":       "",
 	"jclass":        "jobject",

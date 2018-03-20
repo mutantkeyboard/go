@@ -31,6 +31,9 @@ func TestStopTheWorldDeadlock(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping during short test")
 	}
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no preemption on wasm yet")
+	}
 	maxprocs := runtime.GOMAXPROCS(3)
 	compl := make(chan bool, 2)
 	go func() {
@@ -403,6 +406,9 @@ func TestNumGoroutine(t *testing.T) {
 func TestPingPongHog(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in -short mode")
+	}
+	if runtime.GOARCH == "wasm" {
+		t.Skip("no preemption on wasm yet")
 	}
 
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))

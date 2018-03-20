@@ -71,7 +71,7 @@ func (p *Parser) append(prog *obj.Prog, cond string, doLabel bool) {
 
 // validSymbol checks that addr represents a valid name for a pseudo-op.
 func (p *Parser) validSymbol(pseudo string, addr *obj.Addr, offsetOk bool) bool {
-	if addr.Name != obj.NAME_EXTERN && addr.Name != obj.NAME_STATIC || addr.Scale != 0 || addr.Reg != 0 {
+	if addr.Sym == nil || addr.Name != obj.NAME_EXTERN && addr.Name != obj.NAME_STATIC || addr.Scale != 0 || addr.Reg != 0 {
 		p.errorf("%s symbol %q must be a symbol(SB)", pseudo, symbolName(addr))
 		return false
 	}
@@ -486,7 +486,7 @@ func (p *Parser) asmInstruction(op obj.As, cond string, a []obj.Addr) {
 	case 0:
 		// Nothing to do.
 	case 1:
-		if p.arch.UnaryDst[op] {
+		if p.arch.UnaryDst[op] || op == obj.ARET {
 			// prog.From is no address.
 			prog.To = a[0]
 		} else {

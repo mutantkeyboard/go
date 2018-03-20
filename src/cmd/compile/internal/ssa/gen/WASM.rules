@@ -60,9 +60,6 @@
 (Div8   x y) -> (Coerce (I64DivS x y))
 (Div8u  x y) -> (I64DivU x y)
 
-// (Mul64uhilo x y) -> (MULQU2 x y)
-// (Div128u xhi xlo y) -> (DIVQU2 xhi xlo y)
-
 (Mod64  x y) -> (I64RemS x y)
 (Mod64u x y) -> (I64RemU x y)
 (Mod32  x y) -> (I64RemS x y)
@@ -107,23 +104,6 @@
 // Lowering pointer arithmetic
 (OffPtr [0] ptr) -> ptr
 (OffPtr [off] ptr) && off > 0 -> (I64AddConst [off] ptr)
-
-// Lowering other arithmetic
-// (Ctz64 <t> x) -> (CMOVQEQ (Select0 <t> (BSFQ x)) (I64Const <t> [64]) (Select1 <types.TypeFlags> (BSFQ x)))
-// (Ctz32 x) -> (Select0 (BSFQ (ORQ <typ.UInt64> (I64Const [1<<32]) x)))
-
-// (BitLen64 <t> x) -> (I64AddConst [1] (CMOVQEQ <t> (Select0 <t> (BSRQ x)) (I64Const <t> [-1]) (Select1 <types.TypeFlags> (BSRQ x))))
-// (BitLen32 x) -> (BitLen64 (MOVLQZX <typ.UInt64> x))
-
-// (Bswap64 x) -> (BSWAPQ x)
-// (Bswap32 x) -> (BSWAPL x)
-
-// (PopCount64 x) -> (POPCNTQ x)
-// (PopCount32 x) -> (POPCNTL x)
-// (PopCount16 x) -> (POPCNTL (MOVWQZX <typ.UInt32> x))
-// (PopCount8 x) -> (POPCNTL (MOVBQZX <typ.UInt32> x))
-
-// (Sqrt x) -> (SQRTSD x)
 
 // Lowering extension
 (SignExt8to16  x) -> (ToInt8 x)
@@ -439,38 +419,32 @@
 (GetCallerSP) -> (LoweredGetCallerSP)
 (Addr {sym} base) -> (LoweredAddr {sym} base)
 
-// Atomic loads.  Other than preserving their ordering with respect to other loads, nothing special here.
-// (AtomicLoad32 ptr mem) -> (MOVLatomicload ptr mem)
-// (AtomicLoad64 ptr mem) -> (MOVQatomicload ptr mem)
-// (AtomicLoadPtr ptr mem) -> (MOVQatomicload ptr mem)
+// Write barrier.
+(WB {fn} destptr srcptr mem) -> (LoweredWB {fn} destptr srcptr mem)
 
-// Atomic stores.  We use XCHG to prevent the hardware reordering a subsequent load.
-// TODO: most runtime uses of atomic stores don't need that property.  Use normal stores for those?
-// (AtomicStore32 ptr val mem) -> (Select1 (XCHGL <types.NewTuple(typ.UInt32,types.TypeMem)> val ptr mem))
-// (AtomicStore64 ptr val mem) -> (Select1 (XCHGQ <types.NewTuple(typ.UInt64,types.TypeMem)> val ptr mem))
-// (AtomicStorePtrNoWB ptr val mem) -> (Select1 (XCHGQ <types.NewTuple(typ.BytePtr,types.TypeMem)> val ptr mem))
+// --- Optimizations ---
+(I64Add (I64Const [x]) (I64Const [y])) -> (I64Const [x + y]) 
+(I64Mul (I64Const [x]) (I64Const [y])) -> (I64Const [x * y])
+(I64And (I64Const [x]) (I64Const [y])) -> (I64Const [x & y])
+(I64Or  (I64Const [x]) (I64Const [y])) -> (I64Const [x | y])
+(I64Xor (I64Const [x]) (I64Const [y])) -> (I64Const [x ^ y])
+(F64Add (F64Const [x]) (F64Const [y])) -> (F64Const [x + y]) 
+(F64Mul (F64Const [x]) (F64Const [y])) -> (F64Const [x * y])
+(I64Eq  (I64Const [x]) (I64Const [y])) && x == y -> (I64Const [1])
+(I64Eq  (I64Const [x]) (I64Const [y])) && x != y -> (I64Const [0])
+(I64Ne  (I64Const [x]) (I64Const [y])) && x == y -> (I64Const [0])
+(I64Ne  (I64Const [x]) (I64Const [y])) && x != y -> (I64Const [1])
 
-// Atomic exchanges.
-// (AtomicExchange32 ptr val mem) -> (XCHGL val ptr mem)
-// (AtomicExchange64 ptr val mem) -> (XCHGQ val ptr mem)
+(I64Add (I64Const [x]) y) -> (I64Add y (I64Const [x]))
+(I64Mul (I64Const [x]) y) -> (I64Mul y (I64Const [x]))
+(I64And (I64Const [x]) y) -> (I64And y (I64Const [x]))
+(I64Or  (I64Const [x]) y) -> (I64Or  y (I64Const [x]))
+(I64Xor (I64Const [x]) y) -> (I64Xor y (I64Const [x]))
+(F64Add (F64Const [x]) y) -> (F64Add y (F64Const [x]))
+(F64Mul (F64Const [x]) y) -> (F64Mul y (F64Const [x]))
+(I64Eq  (I64Const [x]) y) -> (I64Eq y  (I64Const [x]))
+(I64Ne  (I64Const [x]) y) -> (I64Ne y  (I64Const [x]))
 
-// Atomic adds.
-// (AtomicAdd32 ptr val mem) -> (AddTupleFirst32 val (XADDLlock val ptr mem))
-// (AtomicAdd64 ptr val mem) -> (AddTupleFirst64 val (XADDQlock val ptr mem))
-// (Select0 <t> (AddTupleFirst32 val tuple)) -> (ADDL val (Select0 <t> tuple))
-// (Select1     (AddTupleFirst32   _ tuple)) -> (Select1 tuple)
-// (Select0 <t> (AddTupleFirst64 val tuple)) -> (ADDQ val (Select0 <t> tuple))
-// (Select1     (AddTupleFirst64   _ tuple)) -> (Select1 tuple)
-
-// Atomic compare and swap.
-// (AtomicCompareAndSwap32 ptr old new_ mem) -> (CMPXCHGLlock ptr old new_ mem)
-// (AtomicCompareAndSwap64 ptr old new_ mem) -> (CMPXCHGQlock ptr old new_ mem)
-
-// Atomic memory updates.
-// (AtomicAnd8 ptr val mem) -> (ANDBlock ptr val mem)
-// (AtomicOr8 ptr val mem) -> (ORBlock ptr val mem)
-
-// --- optimizations ---
 (I64Add x (I64Const [y])) -> (I64AddConst [y] x)
 (I64Eqz (I64Eqz (I64Eqz x))) -> (I64Eqz x)
 

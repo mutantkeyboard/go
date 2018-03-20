@@ -28,7 +28,7 @@ type Func struct {
 	Cache  *Cache      // re-usable cache
 	fe     Frontend    // frontend state associated with this Func, callbacks into compiler frontend
 	pass   *pass       // current pass information (name, options, etc.)
-	Name   string      // e.g. bytes·Compare
+	Name   string      // e.g. NewFunc or (*Func).NumBlocks (no package prefix)
 	Type   *types.Type // type signature of the function.
 	Blocks []*Block    // unordered set of all basic blocks (note: not indexable by ID)
 	Entry  *Block      // the entry basic block
@@ -342,6 +342,19 @@ func (b *Block) NewValue2(pos src.XPos, op Op, t *types.Type, arg0, arg1 *Value)
 func (b *Block) NewValue2I(pos src.XPos, op Op, t *types.Type, auxint int64, arg0, arg1 *Value) *Value {
 	v := b.Func.newValue(op, t, b, pos)
 	v.AuxInt = auxint
+	v.Args = v.argstorage[:2]
+	v.argstorage[0] = arg0
+	v.argstorage[1] = arg1
+	arg0.Uses++
+	arg1.Uses++
+	return v
+}
+
+// NewValue2IA returns a new value in the block with two arguments and both an auxint and aux values.
+func (b *Block) NewValue2IA(pos src.XPos, op Op, t *types.Type, auxint int64, aux interface{}, arg0, arg1 *Value) *Value {
+	v := b.Func.newValue(op, t, b, pos)
+	v.AuxInt = auxint
+	v.Aux = aux
 	v.Args = v.argstorage[:2]
 	v.argstorage[0] = arg0
 	v.argstorage[1] = arg1

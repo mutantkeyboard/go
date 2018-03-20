@@ -380,16 +380,6 @@ func appendCmd(cmds []*parse.CommandNode, cmd *parse.CommandNode) []*parse.Comma
 	return append(cmds, cmd)
 }
 
-// indexOfStr is the first i such that eq(s, strs[i]) or -1 if s was not found.
-func indexOfStr(s string, strs []string, eq func(a, b string) bool) int {
-	for i, t := range strs {
-		if eq(s, t) {
-			return i
-		}
-	}
-	return -1
-}
-
 // newIdentCmd produces a command containing a single identifier node.
 func newIdentCmd(identifier string, pos parse.Pos) *parse.CommandNode {
 	return &parse.CommandNode{
@@ -427,7 +417,7 @@ func nudge(c context) context {
 
 // join joins the two contexts of a branch template node. The result is an
 // error context if either of the input contexts are error contexts, or if the
-// the input contexts differ.
+// input contexts differ.
 func join(a, b context, node parse.Node, nodeName string) context {
 	if a.state == stateError {
 		return a

@@ -161,15 +161,15 @@ func assembleInlines(fnsym *obj.LSym, fn *Node, dwVars []*dwarf.Var) dwarf.InlCa
 			continue
 		} else {
 			// Close out the current range
-			endRange(crange, prevp)
+			endRange(crange, p)
 
 			// Begin new range
 			crange = beginRange(inlcalls.Calls, p, ii, imap)
 			curii = ii
 		}
 	}
-	if prevp != nil {
-		endRange(crange, prevp)
+	if crange != nil {
+		crange.End = fnsym.Size
 	}
 
 	// Debugging
@@ -246,8 +246,8 @@ func insertInlCall(dwcalls *dwarf.InlCalls, inlIdx int, imap map[int]int) int {
 	}
 
 	// Create new entry for this inline
-	inlinedFn := Ctxt.InlTree.InlinedFunction(int(inlIdx))
-	callXPos := Ctxt.InlTree.CallPos(int(inlIdx))
+	inlinedFn := Ctxt.InlTree.InlinedFunction(inlIdx)
+	callXPos := Ctxt.InlTree.CallPos(inlIdx)
 	absFnSym := Ctxt.DwFixups.AbsFuncDwarfSym(inlinedFn)
 	pb := Ctxt.PosTable.Pos(callXPos).Base()
 	callFileSym := Ctxt.Lookup(pb.SymFilename())

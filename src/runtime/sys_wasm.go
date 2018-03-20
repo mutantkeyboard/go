@@ -24,10 +24,6 @@ func gostartcall(buf *gobuf, fn, ctxt unsafe.Pointer) {
 	buf.ctxt = ctxt
 }
 
-func wasmcall()
-
-func wasmreturn()
-
 func wasmmove()
 
 func wasmzero()

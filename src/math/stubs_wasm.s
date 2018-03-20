@@ -5,97 +5,97 @@
 #include "textflag.h"
 
 TEXT ·Asin(SB),NOSPLIT,$0
-	JMP ·asin(SB)
+  JMP ·asin(SB)
 
 TEXT ·Asinh(SB),NOSPLIT,$0
-	JMP ·asinh(SB)
+  JMP ·asinh(SB)
 
 TEXT ·Acos(SB),NOSPLIT,$0
-	JMP ·acos(SB)
+  JMP ·acos(SB)
 
 TEXT ·Acosh(SB),NOSPLIT,$0
-	JMP ·acosh(SB)
+  JMP ·acosh(SB)
 
 TEXT ·Atan(SB),NOSPLIT,$0
-	JMP ·atan(SB)
+  JMP ·atan(SB)
 
 TEXT ·Atanh(SB),NOSPLIT,$0
-	JMP ·atanh(SB)
+  JMP ·atanh(SB)
 
 TEXT ·Atan2(SB),NOSPLIT,$0
-	JMP ·atan2(SB)
+  JMP ·atan2(SB)
 
 TEXT ·Cbrt(SB),NOSPLIT,$0
-	JMP ·cbrt(SB)
+  JMP ·cbrt(SB)
 
 TEXT ·Cos(SB),NOSPLIT,$0
-	JMP ·cos(SB)
+  JMP ·cos(SB)
 
 TEXT ·Cosh(SB),NOSPLIT,$0
-	JMP ·cosh(SB)
+  JMP ·cosh(SB)
 
 TEXT ·Erf(SB),NOSPLIT,$0
-	JMP ·erf(SB)
+  JMP ·erf(SB)
 
 TEXT ·Erfc(SB),NOSPLIT,$0
-	JMP ·erfc(SB)
+  JMP ·erfc(SB)
 
 TEXT ·Exp(SB),NOSPLIT,$0
-	JMP ·exp(SB)
+  JMP ·exp(SB)
 
 TEXT ·Expm1(SB),NOSPLIT,$0
-	JMP ·expm1(SB)
+  JMP ·expm1(SB)
 
 TEXT ·Exp2(SB),NOSPLIT,$0
-	JMP ·exp2(SB)
+  JMP ·exp2(SB)
 
 TEXT ·Frexp(SB),NOSPLIT,$0
-	JMP ·frexp(SB)
+  JMP ·frexp(SB)
 
 TEXT ·Hypot(SB),NOSPLIT,$0
-	JMP ·hypot(SB)
+  JMP ·hypot(SB)
 
 TEXT ·Ldexp(SB),NOSPLIT,$0
-	JMP ·ldexp(SB)
+  JMP ·ldexp(SB)
 
 TEXT ·Log(SB),NOSPLIT,$0
-	JMP ·log(SB)
+  JMP ·log(SB)
 
 TEXT ·Log1p(SB),NOSPLIT,$0
-	JMP ·log1p(SB)
+  JMP ·log1p(SB)
 
 TEXT ·Log10(SB),NOSPLIT,$0
-	JMP ·log10(SB)
+  JMP ·log10(SB)
 
 TEXT ·Log2(SB),NOSPLIT,$0
-	JMP ·log2(SB)
+  JMP ·log2(SB)
 
 TEXT ·Max(SB),NOSPLIT,$0
-	JMP ·max(SB)
+  JMP ·max(SB)
 
 TEXT ·Min(SB),NOSPLIT,$0
-	JMP ·min(SB)
+  JMP ·min(SB)
 
 TEXT ·Mod(SB),NOSPLIT,$0
-	JMP ·mod(SB)
+  JMP ·mod(SB)
 
 TEXT ·Modf(SB),NOSPLIT,$0
-	JMP ·modf(SB)
+  JMP ·modf(SB)
 
 TEXT ·Pow(SB),NOSPLIT,$0
-	JMP ·pow(SB)
+  JMP ·pow(SB)
 
 TEXT ·Remainder(SB),NOSPLIT,$0
-	JMP ·remainder(SB)
+  JMP ·remainder(SB)
 
 TEXT ·Sin(SB),NOSPLIT,$0
-	JMP ·sin(SB)
+  JMP ·sin(SB)
 
 TEXT ·Sinh(SB),NOSPLIT,$0
-	JMP ·sinh(SB)
+  JMP ·sinh(SB)
 
 TEXT ·Tan(SB),NOSPLIT,$0
-	JMP ·tan(SB)
+  JMP ·tan(SB)
 
 TEXT ·Tanh(SB),NOSPLIT,$0
-	JMP ·tanh(SB)
+  JMP ·tanh(SB)
